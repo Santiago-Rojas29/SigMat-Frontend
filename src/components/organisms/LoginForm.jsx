@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { FormField } from '../molecules/FormField'
 import { AppButton } from '../atoms/AppButton'
 import { AppInput } from '../atoms/AppInput'
-import { SenaLogo } from '../atoms/SenaLogo'
 import { useAuth } from '../../context/AuthContext'
 import { loginRequest } from '../../services/auth.service'
+import sigmatLogo from '../../assets/sigmat-logo.png'
 
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -69,8 +69,13 @@ export function LoginForm() {
         }
       `}</style>
 
-      <div style={{ marginBottom: 40 }}>
-        <SenaLogo size="lg" />
+      {/* Logo SIGMAT */}
+      <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'center' }}>
+        <img
+          src={sigmatLogo}
+          alt="SIGMAT"
+          style={{ height: 72, width: 'auto', objectFit: 'contain' }}
+        />
       </div>
 
       <div style={{ marginBottom: 32 }}>
