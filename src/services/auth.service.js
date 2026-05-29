@@ -17,3 +17,13 @@ export async function loginRequest(payload) {
     user: { id: decoded.sub, correo: decoded.correo, id_rol: decoded.id_rol },
   }
 }
+
+export async function solicitarReset(correo) {
+  const { data } = await api.post('/auth/solicitar-reset', { correo })
+  return data
+}
+
+export async function resetearContrasena(correo, codigo, nueva_contrasena) {
+  const { data } = await api.post('/auth/resetear-contrasena', { correo, codigo, nueva_contrasena })
+  return data
+}
