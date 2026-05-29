@@ -145,9 +145,22 @@ export function UsuariosPage() {
     }
   }
 
+  const handleBulkDelete = async (ids) => {
+    await Promise.all(ids.map(id => api.delete(`/usuario/${id}`)))
+    loadData()
+  }
+
   // ── Table columns ─────────────────────────────────────────────────────────
 
   const columns = [
+    {
+      key: 'id',
+      header: 'ID',
+      copyable: true,
+      truncateAt: 8,
+      searchable: false,
+      width: 110,
+    },
     {
       key: 'nombre',
       header: 'Nombre completo',
@@ -209,7 +222,27 @@ export function UsuariosPage() {
     <div>
       <PageHeader
         title="Usuarios"
-        description={`Gestión de usuarios del sistema · ${loading ? '…' : usuarios.length} registros`}
+        description="Gestión de cuentas y roles del sistema"
+      />
+
+      <DataTable
+        columns={columns}
+        data={usuarios}
+        loading={loading}
+        error={error}
+        onRetry={loadData}
+        searchable
+        searchPlaceholder="Buscar por nombre, correo, documento…"
+        pageSize={10}
+        selectable
+        onBulkDelete={handleBulkDelete}
+        emptyTitle="Sin usuarios"
+        emptyDescription="Crea el primer usuario del sistema."
+        emptyAction={
+          <AppButton size="compact" onClick={openCreate}>
+            <PlusIcon /> Nuevo usuario
+          </AppButton>
+        }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
@@ -219,21 +252,6 @@ export function UsuariosPage() {
               <PlusIcon /> Nuevo usuario
             </AppButton>
           </>
-        }
-      />
-
-      <DataTable
-        columns={columns}
-        data={usuarios}
-        loading={loading}
-        error={error}
-        onRetry={loadData}
-        emptyTitle="Sin usuarios"
-        emptyDescription="Crea el primer usuario del sistema."
-        emptyAction={
-          <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo usuario
-          </AppButton>
         }
       />
 
