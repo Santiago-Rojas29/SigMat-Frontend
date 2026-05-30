@@ -74,7 +74,6 @@ const NAV = [
     items: [
       { label: 'Usuarios', path: '/admin/usuarios', icon: 'users',  module: 'usuarios' },
       { label: 'Roles',    path: '/admin/roles',    icon: 'shield', module: 'usuarios' },
-      { label: 'Permisos', path: '/admin/permisos', icon: 'key',    module: 'usuarios' },
     ],
   },
   {

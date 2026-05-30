@@ -8,7 +8,10 @@ import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
-import { UsuariosPage } from './pages/admin/UsuariosPage'
+import { UsuariosPage }    from './pages/admin/UsuariosPage'
+import { RolesPage }       from './pages/admin/RolesPage'
+import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
+import { MaterialesPage }   from './pages/inventario/MaterialesPage'
 
 function App() {
   return (
@@ -37,20 +40,19 @@ function App() {
                 {/* Administración — requires 'usuarios' */}
                 <Route element={<PermissionRoute module="usuarios" />}>
                   <Route path="/admin/usuarios" element={<UsuariosPage />} />
-                  <Route path="/admin/roles"    element={<PlaceholderPage title="Roles"    module="usuarios" />} />
-                  <Route path="/admin/permisos" element={<PlaceholderPage title="Permisos" module="usuarios" />} />
+                  <Route path="/admin/roles" element={<RolesPage />} />
                 </Route>
 
                 {/* Inventario — materiales */}
                 <Route element={<PermissionRoute module="materiales" />}>
-                  <Route path="/inventario/materiales" element={<PlaceholderPage title="Materiales" module="materiales" />} />
+                  <Route path="/inventario/materiales" element={<MaterialesPage />} />
                   <Route path="/inventario/lotes"      element={<PlaceholderPage title="Lotes"      module="materiales" />} />
                   <Route path="/inventario/unidades"   element={<PlaceholderPage title="Unidades"   module="materiales" />} />
                 </Route>
 
                 {/* Inventario — ubicaciones */}
                 <Route element={<PermissionRoute module="ubicaciones" />}>
-                  <Route path="/inventario/ubicaciones" element={<PlaceholderPage title="Ubicaciones" module="ubicaciones" />} />
+                  <Route path="/inventario/ubicaciones" element={<UbicacionesPage />} />
                 </Route>
 
                 {/* Movimientos: Solicitudes (incluye validación) + Préstamos (incluye entregas/devoluciones) */}
