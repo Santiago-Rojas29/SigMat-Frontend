@@ -145,8 +145,15 @@ export function Sidebar({ isOpen }) {
         borderBottom: '1px solid #e5e7eb',
         justifyContent: 'center',
       }}>
-        <img src={sigmatLogo} alt="SIGMAT"
-          style={{ height: isOpen ? 44 : 36, width: 'auto', objectFit: 'contain' }} />
+        {isOpen ? (
+          <img src={sigmatLogo} alt="SIGMAT"
+            style={{ height: 44, width: 'auto', objectFit: 'contain' }} />
+        ) : (
+          <div style={{ width: 34, height: 38, overflow: 'hidden', flexShrink: 0 }}>
+            <img src={sigmatLogo} alt="SIGMAT"
+              style={{ height: 38, width: 'auto', display: 'block' }} />
+          </div>
+        )}
       </div>
 
       <nav className="smt-nav" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 0' }}>
@@ -186,7 +193,7 @@ export function Sidebar({ isOpen }) {
                 <div style={{ height: 1, background: '#e5e7eb', margin: '6px 10px' }} />
               )}
 
-              {(expanded || !section || !isOpen) && (
+              {(!section || !isOpen) ? (
                 <div>
                   {visible.map(item => (
                     <NavLink
@@ -202,6 +209,28 @@ export function Sidebar({ isOpen }) {
                       {isOpen && item.label}
                     </NavLink>
                   ))}
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateRows: expanded ? '1fr' : '0fr',
+                  transition: 'grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)',
+                }}>
+                  <div style={{ overflow: 'hidden' }}>
+                    {visible.map(item => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        end={item.path === '/dashboard'}
+                        className={({ isActive }) =>
+                          `smt-link${isActive ? ' active' : ''}`
+                        }
+                      >
+                        {icons[item.icon]?.(17)}
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

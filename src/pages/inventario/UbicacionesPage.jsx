@@ -1,54 +1,40 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../../services/api'
 import { AppButton }     from '../../components/atoms/AppButton'
 import { AppInput }      from '../../components/atoms/AppInput'
 import { AppSelect }     from '../../components/atoms/AppSelect'
 import { Badge }         from '../../components/atoms/Badge'
+import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
 import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
+import { DataTable }     from '../../components/organisms/DataTable'
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 20, children, color = 'currentColor' }) {
+function Ic({ size = 16, children }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {children}
     </svg>
   )
 }
 
-const PlusIcon    = ({ size = 16 }) => <Ic size={size}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const EditIcon    = ({ size = 14 }) => <Ic size={size}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = ({ size = 14 }) => <Ic size={size}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></Ic>
-const RefreshIcon = ({ size = 16 }) => <Ic size={size}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const GridIcon    = ({ size = 20, color }) => <Ic size={size} color={color}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></Ic>
-const BoxIcon     = ({ size = 20, color }) => <Ic size={size} color={color}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></Ic>
+const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
+const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
+const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
+const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
 
-// Paleta de colores para tipos dinámicos
 const PALETA = [
-  { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
-  { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
-  { color: '#d97706', bg: '#fffbeb', border: '#fde68a', light: '#fef3c7' },
-  { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', light: '#ede9fe' },
-  { color: '#db2777', bg: '#fdf2f8', border: '#fbcfe8', light: '#fce7f3' },
-  { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', light: '#cffafe' },
+  { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
+  { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', paths: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
+  { color: '#d97706', bg: '#fffbeb', border: '#fde68a', light: '#fef3c7', paths: <><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></> },
+  { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', light: '#ede9fe', paths: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></> },
+  { color: '#db2777', bg: '#fdf2f8', border: '#fbcfe8', light: '#fce7f3', paths: <><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></> },
+  { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', light: '#cffafe', paths: <><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></> },
 ]
 
-const CSS = `
-  .ub-type-btn { transition: all 0.15s; cursor: pointer; border: none; text-align: left; }
-  .ub-type-btn:hover { filter: brightness(0.96); transform: translateY(-1px); }
-  .ub-card { transition: box-shadow 0.18s, transform 0.18s; }
-  .ub-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.10); transform: translateY(-2px); }
-  .ub-icon-btn { background: none; border: none; cursor: pointer; padding: 5px; border-radius: 6px; display: flex; align-items: center; transition: background 0.15s; }
-  .ub-icon-btn:hover { background: rgba(0,0,0,0.06); }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-  .ub-enter { animation: fadeIn 0.22s ease both; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
-`
 
 export function UbicacionesPage() {
   const [tipos,       setTipos]       = useState([])
@@ -56,9 +42,8 @@ export function UbicacionesPage() {
   const [areas,       setAreas]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
-  const [activeType,  setActiveType]  = useState(null) // id del tipo filtrado, null = todos
+  const [filtro,      setFiltro]      = useState(null)
 
-  // Modal tipo
   const [tipoModal,  setTipoModal]  = useState(null)
   const [tipoForm,   setTipoForm]   = useState({ nombre: '', descripcion: '' })
   const [tipoSaving, setTipoSaving] = useState(false)
@@ -66,15 +51,12 @@ export function UbicacionesPage() {
   const [deleteTipo, setDeleteTipo] = useState(null)
   const [delTipo,    setDelTipo]    = useState(false)
 
-  // Modal ubicación
   const [ubModal,  setUbModal]  = useState(null)
   const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo' })
   const [ubSaving, setUbSaving] = useState(false)
   const [ubError,  setUbError]  = useState(null)
   const [deleteUb, setDeleteUb] = useState(null)
   const [delUb,    setDelUb]    = useState(false)
-
-  // ── Carga ──────────────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
@@ -93,20 +75,37 @@ export function UbicacionesPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  const ubicacionesRicas = useMemo(() => ubicaciones.map(u => ({
+    ...u,
+    _tipo: tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion)),
+    _area: areas.find(a => String(a.id_area) === String(u.id_area)),
+    _paleta: PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
+  })), [ubicaciones, tipos, areas])
+
+  const cards = useMemo(() => [
+    {
+      key: null, label: 'Todas', color: '#111827', bg: '#fff', border: '#e5e7eb',
+      paths: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
+    },
+    ...tipos.map((t, idx) => {
+      const p = PALETA[idx % PALETA.length]
+      return { key: String(t.id_tipo_ubicacion), label: t.nombre, color: p.color, bg: p.bg, border: p.border, paths: p.paths }
+    }),
+  ], [tipos])
+
+  const counts = useMemo(() => {
+    const c = { total: ubicaciones.length }
+    tipos.forEach(t => { c[String(t.id_tipo_ubicacion)] = ubicaciones.filter(u => String(u.id_tipo_ubicacion) === String(t.id_tipo_ubicacion)).length })
+    return c
+  }, [ubicaciones, tipos])
+
+  const datosTabla = useMemo(() => {
+    if (!filtro) return ubicacionesRicas
+    return ubicacionesRicas.filter(u => String(u.id_tipo_ubicacion) === filtro)
+  }, [ubicacionesRicas, filtro])
 
   const setT = (k, v) => setTipoForm(p => ({ ...p, [k]: v }))
   const setU = (k, v) => setUbForm(p => ({ ...p, [k]: v }))
-
-  const colorDeTipo = (id) => PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(id))) % PALETA.length] ?? PALETA[0]
-  const areaNombre  = (id) => areas.find(a => String(a.id_area) === String(id))?.nombre ?? '—'
-  const countDeTipo = (id) => ubicaciones.filter(u => String(u.id_tipo_ubicacion) === String(id)).length
-
-  const ubicacionesFiltradas = activeType
-    ? ubicaciones.filter(u => String(u.id_tipo_ubicacion) === String(activeType))
-    : ubicaciones
-
-  // ── CRUD Tipos ────────────────────────────────────────────────────────────
 
   const openCrearTipo = () => {
     setTipoForm({ nombre: '', descripcion: '' })
@@ -141,18 +140,17 @@ export function UbicacionesPage() {
     setDelTipo(true)
     try {
       await api.delete(`/tipo-ubicacion/${deleteTipo.id_tipo_ubicacion}`)
-      setDeleteTipo(null); if (activeType === deleteTipo.id_tipo_ubicacion) setActiveType(null)
+      setDeleteTipo(null)
+      if (filtro === String(deleteTipo.id_tipo_ubicacion)) setFiltro(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      setTipoError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelTipo(false) }
   }
 
-  // ── CRUD Ubicaciones ──────────────────────────────────────────────────────
-
-  const openCrearUb = (id_tipo = '') => {
-    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: String(id_tipo), id_area: String(areas[0]?.id_area ?? '') })
+  const openCrearUb = () => {
+    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? '') })
     setUbError(null)
     setUbModal({ mode: 'create' })
   }
@@ -164,9 +162,9 @@ export function UbicacionesPage() {
   }
 
   const handleSaveUb = async () => {
-    if (!ubForm.nombre.trim())        { setUbError('El nombre es obligatorio.'); return }
-    if (!ubForm.id_tipo_ubicacion)    { setUbError('Selecciona un tipo.'); return }
-    if (!ubForm.id_area)              { setUbError('Selecciona un área.'); return }
+    if (!ubForm.nombre.trim())     { setUbError('El nombre es obligatorio.'); return }
+    if (!ubForm.id_tipo_ubicacion) { setUbError('Selecciona un tipo.'); return }
+    if (!ubForm.id_area)           { setUbError('Selecciona un área.'); return }
     setUbSaving(true); setUbError(null)
     const payload = { ...ubForm, id_area: String(ubForm.id_area), id_tipo_ubicacion: String(ubForm.id_tipo_ubicacion) }
     try {
@@ -189,150 +187,141 @@ export function UbicacionesPage() {
       setDeleteUb(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      setUbError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelUb(false) }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleBulkDelete = async (ids) => {
+    await Promise.all(ids.map(id => api.delete(`/ubicacion/${id}`)))
+    loadData()
+  }
+
+  const columns = [
+    { key: 'id_ubicacion', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110 },
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      render: u => <span style={{ fontWeight: 600, color: '#111827' }}>{u.nombre}</span>,
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo',
+      width: 150,
+      render: u => {
+        const p = u._paleta
+        return (
+          <span style={{ fontSize: 12, fontWeight: 600, color: p?.color ?? '#374151', background: p?.bg ?? '#f3f4f6', padding: '3px 10px', borderRadius: 20, display: 'inline-block' }}>
+            {u._tipo?.nombre ?? '—'}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'area',
+      header: 'Área',
+      render: u => <span style={{ color: '#374151' }}>{u._area?.nombre ?? '—'}</span>,
+    },
+    {
+      key: 'descripcion',
+      header: 'Descripción',
+      render: u => (
+        <span style={{ fontSize: 13, color: '#6b7280', maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {u.descripcion || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      width: 110,
+      render: u => <Badge variant={u.estado === 'activo' ? 'success' : 'default'}>{u.estado === 'activo' ? 'Activo' : 'Inactivo'}</Badge>,
+    },
+    {
+      key: 'acciones',
+      header: '',
+      align: 'right',
+      width: 90,
+      render: u => (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><EditIcon /></IconButton>
+          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><TrashIcon /></IconButton>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <div>
-      <style>{CSS}</style>
-
-      {/* ── Cabecera con botón verde arriba ───────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0, letterSpacing: '-0.3px' }}>Ubicaciones</h1>
-          <p style={{ fontSize: 13.5, color: '#6b7280', marginTop: 4 }}>Gestiona los espacios físicos del almacén por tipo</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-            <RefreshIcon /> Actualizar
-          </AppButton>
-          <AppButton size="compact" onClick={openCrearTipo}>
-            <PlusIcon /> Nuevo tipo
-          </AppButton>
-        </div>
-      </div>
+      <PageHeader title="Ubicaciones" description="Espacios físicos del almacén organizados por tipo" />
 
       {error && <AlertBanner variant="error" style={{ marginBottom: 16 }}>{error}</AlertBanner>}
 
-      {/* ── Tarjetas de tipo como filtro ───────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginBottom: 24 }}>
-
-        {/* Tarjeta "Todos" */}
-        <button className="ub-type-btn" onClick={() => setActiveType(null)} style={{
-          background: activeType === null ? '#111827' : '#fff',
-          border: `2px solid ${activeType === null ? '#111827' : '#e5e7eb'}`,
-          borderRadius: 14, padding: '16px 18px',
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: activeType === null ? 'rgba(255,255,255,0.12)' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GridIcon size={20} color={activeType === null ? '#fff' : '#6b7280'} />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: activeType === null ? '#fff' : '#374151' }}>Todos</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: activeType === null ? '#fff' : '#111827', lineHeight: 1.1 }}>{ubicaciones.length}</div>
-          </div>
-        </button>
-
-        {/* Tarjeta por tipo */}
-        {tipos.map((tipo, idx) => {
-          const c       = PALETA[idx % PALETA.length]
-          const isActive = String(activeType) === String(tipo.id_tipo_ubicacion)
-          const count   = countDeTipo(tipo.id_tipo_ubicacion)
+      {/* ── Cards de tipo como filtro ── */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        {cards.map(card => {
+          const isActive = filtro === card.key
+          const count    = card.key === null ? counts.total : (counts[card.key] ?? 0)
           return (
-            <button key={tipo.id_tipo_ubicacion} className="ub-type-btn" onClick={() => setActiveType(isActive ? null : tipo.id_tipo_ubicacion)} style={{
-              background: isActive ? c.color : c.bg,
-              border:     `2px solid ${isActive ? c.color : c.border}`,
-              borderRadius: 14, padding: '16px 18px',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: isActive ? 'rgba(255,255,255,0.18)' : c.light, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <BoxIcon size={20} color={isActive ? '#fff' : c.color} />
+            <button
+              key={String(card.key)}
+              onClick={() => setFiltro(isActive ? null : card.key)}
+              style={{
+                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+                border: `1.5px solid ${isActive ? card.color : card.border}`,
+                background: isActive ? card.color : card.bg,
+                transition: 'all 0.18s',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke={isActive ? '#fff' : card.color} strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round">
+                {card.paths}
+              </svg>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: isActive ? '#fff' : '#111827', lineHeight: 1 }}>{count}</div>
+                <div style={{ fontSize: 11.5, color: isActive ? 'rgba(255,255,255,0.85)' : '#6b7280', marginTop: 3 }}>{card.label}</div>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#fff' : '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tipo.nombre}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: isActive ? '#fff' : c.color, lineHeight: 1.1 }}>{count}</div>
-              </div>
-              {/* Botón + para crear ubicación de ese tipo */}
-              <button
-                onClick={e => { e.stopPropagation(); openCrearUb(tipo.id_tipo_ubicacion) }}
-                style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: isActive ? 'rgba(255,255,255,0.22)' : c.light, color: isActive ? '#fff' : c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-                title={`Nueva ubicación de tipo ${tipo.nombre}`}
-              >
-                <PlusIcon size={15} />
-              </button>
             </button>
           )
         })}
       </div>
 
-      {/* ── Sección de ubicaciones ─────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 13.5, fontWeight: 600, color: '#374151', margin: 0 }}>
-          {activeType
-            ? `${tipos.find(t => String(t.id_tipo_ubicacion) === String(activeType))?.nombre ?? ''} (${ubicacionesFiltradas.length})`
-            : `Todas las ubicaciones (${ubicaciones.length})`}
-        </h3>
-        <AppButton size="compact" onClick={() => openCrearUb(activeType ?? '')}>
-          <PlusIcon size={14} /> Nueva ubicación
-        </AppButton>
-      </div>
-
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} style={{ height: 120, borderRadius: 12, background: '#f3f4f6', animation: 'pulse 1.5s ease-in-out infinite', opacity: 1 - i * 0.08 }} />
-          ))}
-        </div>
-      ) : ubicacionesFiltradas.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '52px 20px', border: '2px dashed #e5e7eb', borderRadius: 14, background: '#fafafa' }}>
-          <div style={{ color: '#d1d5db', marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
-            <BoxIcon size={44} color="#d1d5db" />
-          </div>
-          <p style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>Sin ubicaciones</p>
-          <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 18 }}>
-            {activeType ? `No hay ubicaciones de este tipo.` : 'Aún no hay ubicaciones registradas.'}
-          </p>
-          <AppButton size="compact" onClick={() => openCrearUb(activeType ?? '')}>
-            <PlusIcon /> Crear primera ubicación
+      <DataTable
+        columns={columns}
+        data={datosTabla}
+        loading={loading}
+        error={error}
+        onRetry={loadData}
+        rowKey="id_ubicacion"
+        searchable
+        searchPlaceholder="Buscar por nombre, tipo, área…"
+        pageSize={10}
+        selectable
+        onBulkDelete={handleBulkDelete}
+        emptyTitle="Sin ubicaciones"
+        emptyDescription="Registra la primera ubicación del almacén."
+        emptyAction={
+          <AppButton size="compact" onClick={openCrearUb}>
+            <PlusIcon /> Nueva ubicación
           </AppButton>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-          {ubicacionesFiltradas.map((u, i) => {
-            const c = colorDeTipo(u.id_tipo_ubicacion)
-            const tipoNombre = tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))?.nombre ?? '—'
-            return (
-              <div key={u.id_ubicacion} className="ub-card ub-enter" style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', border: '1px solid #e5e7eb', position: 'relative', animationDelay: `${i * 35}ms` }}>
-                <div style={{ position: 'absolute', top: 0, left: 14, right: 14, height: 3, borderRadius: '0 0 4px 4px', background: c.color }} />
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 6, marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{u.nombre}</div>
-                    <div style={{ fontSize: 11, color: c.color, fontWeight: 600, marginTop: 1 }}>{tipoNombre}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="ub-icon-btn" onClick={() => openEditUb(u)} style={{ color: '#6b7280' }}><EditIcon /></button>
-                    <button className="ub-icon-btn" onClick={() => setDeleteUb(u)} style={{ color: '#ef4444' }}><TrashIcon /></button>
-                  </div>
-                </div>
-                <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {u.descripcion || 'Sin descripción'}
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: '#9ca3af' }}>📍 {areaNombre(u.id_area)}</span>
-                  <Badge variant={u.estado === 'activo' ? 'success' : 'default'} style={{ fontSize: 10 }}>
-                    {u.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+        }
+        actions={
+          <>
+            <AppButton variant="ghost" size="compact" onClick={openCrearTipo}>
+              <PlusIcon /> Nuevo tipo
+            </AppButton>
+            <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
+              <RefreshIcon /> Actualizar
+            </AppButton>
+            <AppButton size="compact" onClick={openCrearUb}>
+              <PlusIcon /> Nueva ubicación
+            </AppButton>
+          </>
+        }
+      />
 
-      {/* ── Modal: Nuevo tipo ─────────────────────────────────────────────── */}
+      {/* ── Modal: Nuevo/Editar tipo ── */}
       <AppModal
         isOpen={!!tipoModal}
         onClose={() => setTipoModal(null)}
@@ -348,18 +337,18 @@ export function UbicacionesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Nombre del tipo" required>
-            <AppInput size="sm" value={tipoForm.nombre} placeholder="Ej. Bodega de herramientas, Cuarto frío..."
+            <AppInput size="sm" value={tipoForm.nombre} placeholder="Ej. Bodega, Laboratorio, Cuarto frío…"
               onChange={e => setT('nombre', e.target.value)} />
           </FormField>
           <FormField label="Descripción" required>
-            <AppInput size="sm" value={tipoForm.descripcion} placeholder="Ej. Espacio para almacenar herramientas"
+            <AppInput size="sm" value={tipoForm.descripcion} placeholder="Descripción del tipo de espacio"
               onChange={e => setT('descripcion', e.target.value)} />
           </FormField>
           {tipoError && <AlertBanner variant="error">{tipoError}</AlertBanner>}
         </div>
       </AppModal>
 
-      {/* ── Modal: Nueva ubicación ────────────────────────────────────────── */}
+      {/* ── Modal: Nueva/Editar ubicación ── */}
       <AppModal
         isOpen={!!ubModal}
         onClose={() => setUbModal(null)}
@@ -375,7 +364,7 @@ export function UbicacionesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Nombre" required>
-            <AppInput size="sm" value={ubForm.nombre} placeholder="Ej. Bodega A, Laboratorio 1..."
+            <AppInput size="sm" value={ubForm.nombre} placeholder="Ej. Bodega A, Laboratorio 1…"
               onChange={e => setU('nombre', e.target.value)} />
           </FormField>
           <FormField label="Descripción">
@@ -406,22 +395,20 @@ export function UbicacionesPage() {
         </div>
       </AppModal>
 
-      {/* ── Confirmar eliminar tipo ────────────────────────────────────────── */}
       <ConfirmDialog
         isOpen={!!deleteTipo}
         title="Eliminar tipo"
-        description={deleteTipo ? <>¿Eliminar el tipo <strong>{deleteTipo.nombre}</strong>?</> : null}
+        description={deleteTipo ? <>¿Eliminar el tipo <strong>{deleteTipo.nombre}</strong>? Las ubicaciones de este tipo quedarán sin tipo asignado.</> : null}
         confirmLabel="Sí, eliminar"
         onConfirm={handleDeleteTipo}
         onCancel={() => setDeleteTipo(null)}
         loading={delTipo}
       />
 
-      {/* ── Confirmar eliminar ubicación ───────────────────────────────────── */}
       <ConfirmDialog
         isOpen={!!deleteUb}
         title="Eliminar ubicación"
-        description={deleteUb ? <>¿Eliminar <strong>{deleteUb.nombre}</strong>?</> : null}
+        description={deleteUb ? <>¿Eliminar <strong>{deleteUb.nombre}</strong>? Esta acción no se puede deshacer.</> : null}
         confirmLabel="Sí, eliminar"
         onConfirm={handleDeleteUb}
         onCancel={() => setDeleteUb(null)}

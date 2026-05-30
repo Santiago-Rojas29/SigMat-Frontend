@@ -14,6 +14,9 @@ import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
 import { MaterialesPage }   from './pages/inventario/MaterialesPage'
 import { LotesPage }        from './pages/inventario/LotesPage'
 import { UnidadesPage }     from './pages/inventario/UnidadesPage'
+import { SolicitudesPage }  from './pages/movimientos/SolicitudesPage'
+import { PrestamosPage }   from './pages/movimientos/PrestamosPage'
+import { IncidenciasPage } from './pages/control/IncidenciasPage'
 
 function App() {
   return (
@@ -59,14 +62,14 @@ function App() {
 
                 {/* Movimientos: Solicitudes (incluye validación) + Préstamos (incluye entregas/devoluciones) */}
                 <Route element={<PermissionRoute module="prestamos" />}>
-                  <Route path="/movimientos/solicitudes" element={<PlaceholderPage title="Solicitudes" module="prestamos" />} />
-                  <Route path="/movimientos/prestamos"   element={<PlaceholderPage title="Préstamos"   module="prestamos" />} />
+                  <Route path="/movimientos/solicitudes" element={<SolicitudesPage />} />
+                  <Route path="/movimientos/prestamos"   element={<PrestamosPage />} />
                 </Route>
 
                 {/* Control y Seguimiento — requires 'inventario' */}
                 <Route element={<PermissionRoute module="inventario" />}>
                   <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="inventario" />} />
-                  <Route path="/control/incidencias" element={<PlaceholderPage title="Incidencias" module="inventario" />} />
+                  <Route path="/control/incidencias" element={<IncidenciasPage />} />
                   <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="inventario" />} />
                 </Route>
 

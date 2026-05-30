@@ -47,10 +47,16 @@ const EMPTY_FORM = {
   tipo: '', marca: '', modelo: '', descripcion: '', codigo_unspsc: '',
 }
 
-const CSS = `
-  .mat-cat-btn { transition: all 0.15s; cursor: pointer; border: none; text-align: left; }
-  .mat-cat-btn:hover { filter: brightness(0.96); transform: translateY(-1px); }
-`
+const CARDS_MAT = [
+  { key: null,           label: 'Todos',          color: '#111827', bg: '#fff',    border: '#e5e7eb',
+    paths: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></> },
+  { key: 'consumible',    label: 'Consumibles',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0',
+    paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
+  { key: 'no consumible', label: 'No consumibles', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe',
+    paths: <><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></> },
+  { key: 'perecedero',    label: 'Perecederos',    color: '#d97706', bg: '#fffbeb', border: '#fde68a',
+    paths: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></> },
+]
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -203,54 +209,32 @@ export function MaterialesPage() {
 
   return (
     <div>
-      <style>{CSS}</style>
-
       <PageHeader title="Materiales" description="Catálogo de materiales del almacén SENA" />
 
-      {/* ── Tarjetas de categoría ──────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10, marginBottom: 24 }}>
-
-        {/* Todos */}
-        <button className="mat-cat-btn" onClick={() => setActiveCateg(null)} style={{
-          background: activeCateg === null ? '#111827' : '#fff',
-          border: `2px solid ${activeCateg === null ? '#111827' : '#e5e7eb'}`,
-          borderRadius: 14, padding: '16px 18px',
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: activeCateg === null ? 'rgba(255,255,255,0.12)' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Ic size={20} color={activeCateg === null ? '#fff' : '#6b7280'}>
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </Ic>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: activeCateg === null ? '#fff' : '#374151' }}>Todos</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: activeCateg === null ? '#fff' : '#111827', lineHeight: 1.1 }}>{materiales.length}</div>
-          </div>
-        </button>
-
-        {/* Por categoría */}
-        {CATEGORIA_OPTIONS.map(({ value, label }) => {
-          const c        = CATEGORIAS[value]
-          const isActive = activeCateg === value
-          const count    = countCat(value)
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        {CARDS_MAT.map(card => {
+          const isActive = activeCateg === card.key
+          const count    = card.key === null ? materiales.length : countCat(card.key)
           return (
-            <button key={value} className="mat-cat-btn" onClick={() => setActiveCateg(isActive ? null : value)} style={{
-              background: isActive ? c.color : c.bg,
-              border:     `2px solid ${isActive ? c.color : c.border}`,
-              borderRadius: 14, padding: '16px 18px',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: isActive ? 'rgba(255,255,255,0.18)' : c.light, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Ic size={20} color={isActive ? '#fff' : c.color}>
-                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                  <line x1="12" y1="22.08" x2="12" y2="12"/>
-                </Ic>
-              </div>
+            <button
+              key={String(card.key)}
+              onClick={() => setActiveCateg(isActive ? null : card.key)}
+              style={{
+                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+                border: `1.5px solid ${isActive ? card.color : card.border}`,
+                background: isActive ? card.color : card.bg,
+                transition: 'all 0.18s',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke={isActive ? '#fff' : card.color} strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round">
+                {card.paths}
+              </svg>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? '#fff' : '#374151' }}>{label}</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: isActive ? '#fff' : c.color, lineHeight: 1.1 }}>{count}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: isActive ? '#fff' : '#111827', lineHeight: 1 }}>{count}</div>
+                <div style={{ fontSize: 11.5, color: isActive ? 'rgba(255,255,255,0.85)' : '#6b7280', marginTop: 3 }}>{card.label}</div>
               </div>
             </button>
           )

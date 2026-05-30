@@ -50,8 +50,6 @@ const EMPTY_FORM = {
   codigo_unidad: '', estado: 'disponible',
 }
 
-const CSS = `.unidad-card { transition: all 0.15s; cursor: pointer; border: none; text-align: left; }
-.unidad-card:hover { filter: brightness(0.96); transform: translateY(-1px); }`
 
 export function UnidadesPage() {
   const [unidades,    setUnidades]    = useState([])
@@ -230,43 +228,32 @@ export function UnidadesPage() {
 
   return (
     <div>
-      <style>{CSS}</style>
-
       <PageHeader title="Unidades" description="Activos físicos registrados por código de placa o serial" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS.map(card => {
           const isActive = filtro === card.key
           const count    = card.key === null ? counts.total : (counts[card.key] ?? 0)
           return (
             <button
               key={String(card.key)}
-              className="unidad-card"
               onClick={() => setFiltro(isActive ? null : card.key)}
               style={{
+                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+                border: `1.5px solid ${isActive ? card.color : card.border}`,
                 background: isActive ? card.color : card.bg,
-                border: `2px solid ${isActive ? card.color : card.border}`,
-                borderRadius: 14, padding: '14px 16px',
-                display: 'flex', alignItems: 'center', gap: 10,
+                transition: 'all 0.18s',
               }}
             >
-              <div style={{
-                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                background: isActive ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.05)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
-                  stroke={isActive ? '#fff' : card.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  {card.paths}
-                </svg>
-              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke={isActive ? '#fff' : card.color} strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round">
+                {card.paths}
+              </svg>
               <div>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: isActive ? 'rgba(255,255,255,0.85)' : '#374151' }}>
-                  {card.label}
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, color: isActive ? '#fff' : card.color }}>
-                  {count}
-                </div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: isActive ? '#fff' : '#111827', lineHeight: 1 }}>{count}</div>
+                <div style={{ fontSize: 11.5, color: isActive ? 'rgba(255,255,255,0.85)' : '#6b7280', marginTop: 3 }}>{card.label}</div>
               </div>
             </button>
           )
