@@ -5,6 +5,7 @@ import { PrivateRoute } from './routes/PrivateRoute'
 import { PermissionRoute } from './routes/PermissionRoute'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { UsuariosPage } from './pages/admin/UsuariosPage'
@@ -17,6 +18,7 @@ function App() {
           <Routes>
             {/* Public */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* Protected — requires authentication */}
             <Route element={<PrivateRoute />}>

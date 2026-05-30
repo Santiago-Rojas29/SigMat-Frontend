@@ -115,7 +115,7 @@ export function LoginForm() {
         </FormField>
 
         <div style={{ textAlign: 'right', marginTop: -6 }}>
-          <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#39A900', fontSize: 13, fontWeight: 500, padding: 0, fontFamily: 'inherit' }}>
+          <button type="button" onClick={() => navigate('/forgot-password')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#39A900', fontSize: 13, fontWeight: 500, padding: 0, fontFamily: 'inherit' }}>
             ¿Olvidaste tu contraseña?
           </button>
         </div>
