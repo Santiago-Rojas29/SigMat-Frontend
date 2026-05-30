@@ -12,6 +12,8 @@ import { UsuariosPage }    from './pages/admin/UsuariosPage'
 import { RolesPage }       from './pages/admin/RolesPage'
 import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
 import { MaterialesPage }   from './pages/inventario/MaterialesPage'
+import { LotesPage }        from './pages/inventario/LotesPage'
+import { UnidadesPage }     from './pages/inventario/UnidadesPage'
 
 function App() {
   return (
@@ -46,8 +48,8 @@ function App() {
                 {/* Inventario — materiales */}
                 <Route element={<PermissionRoute module="materiales" />}>
                   <Route path="/inventario/materiales" element={<MaterialesPage />} />
-                  <Route path="/inventario/lotes"      element={<PlaceholderPage title="Lotes"      module="materiales" />} />
-                  <Route path="/inventario/unidades"   element={<PlaceholderPage title="Unidades"   module="materiales" />} />
+                  <Route path="/inventario/lotes"      element={<LotesPage />} />
+                  <Route path="/inventario/unidades"   element={<UnidadesPage />} />
                 </Route>
 
                 {/* Inventario — ubicaciones */}
