@@ -9,6 +9,11 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { UsuariosPage }    from './pages/admin/UsuariosPage'
+import { CentrosPage }      from './pages/estructura/CentrosPage'
+import { SedesPage }        from './pages/estructura/SedesPage'
+import { AreasPage }        from './pages/estructura/AreasPage'
+import { ProgramasPage }    from './pages/estructura/ProgramasPage'
+import { FichasPage }       from './pages/estructura/FichasPage'
 import { RolesPage }       from './pages/admin/RolesPage'
 import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
 import { MaterialesPage }   from './pages/inventario/MaterialesPage'
@@ -36,11 +41,11 @@ function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
 
                 {/* Estructura — always visible */}
-                <Route path="/estructura/centros"  element={<PlaceholderPage title="Centros"   module="estructura" />} />
-                <Route path="/estructura/sedes"    element={<PlaceholderPage title="Sedes"     module="estructura" />} />
-                <Route path="/estructura/areas"    element={<PlaceholderPage title="Áreas"     module="estructura" />} />
-                <Route path="/estructura/programas"element={<PlaceholderPage title="Programas" module="estructura" />} />
-                <Route path="/estructura/fichas"   element={<PlaceholderPage title="Fichas"    module="estructura" />} />
+                <Route path="/estructura/centros"  element={<CentrosPage />} />
+                <Route path="/estructura/sedes"    element={<SedesPage />} />
+                <Route path="/estructura/areas"    element={<AreasPage />} />
+                <Route path="/estructura/programas"element={<ProgramasPage />} />
+                <Route path="/estructura/fichas"   element={<FichasPage />} />
 
                 {/* Administración — requires 'usuarios' */}
                 <Route element={<PermissionRoute module="usuarios" />}>
