@@ -15,6 +15,7 @@ import { AreasPage }        from './pages/estructura/AreasPage'
 import { ProgramasPage }    from './pages/estructura/ProgramasPage'
 import { FichasPage }       from './pages/estructura/FichasPage'
 import { RolesPage }       from './pages/admin/RolesPage'
+import { PermisosPage }   from './pages/admin/PermisosPage'
 import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
 import { MaterialesPage }   from './pages/inventario/MaterialesPage'
 import { LotesPage }        from './pages/inventario/LotesPage'
@@ -40,42 +41,41 @@ function App() {
                 {/* Dashboard — always visible */}
                 <Route path="/dashboard" element={<DashboardPage />} />
 
-                {/* Estructura — always visible */}
-                <Route path="/estructura/centros"  element={<CentrosPage />} />
-                <Route path="/estructura/sedes"    element={<SedesPage />} />
-                <Route path="/estructura/areas"    element={<AreasPage />} />
-                <Route path="/estructura/programas"element={<ProgramasPage />} />
-                <Route path="/estructura/fichas"   element={<FichasPage />} />
-
-                {/* Administración — requires 'usuarios' */}
-                <Route element={<PermissionRoute module="usuarios" />}>
-                  <Route path="/admin/usuarios" element={<UsuariosPage />} />
-                  <Route path="/admin/roles" element={<RolesPage />} />
+                {/* Estructura — solo administradores */}
+                <Route element={<PermissionRoute module="administracion" />}>
+                  <Route path="/estructura/centros"  element={<CentrosPage />} />
+                  <Route path="/estructura/sedes"    element={<SedesPage />} />
+                  <Route path="/estructura/areas"    element={<AreasPage />} />
+                  <Route path="/estructura/programas"element={<ProgramasPage />} />
+                  <Route path="/estructura/fichas"   element={<FichasPage />} />
                 </Route>
 
-                {/* Inventario — materiales */}
-                <Route element={<PermissionRoute module="materiales" />}>
+                {/* Administración — requires 'administracion' */}
+                <Route element={<PermissionRoute module="administracion" />}>
+                  <Route path="/admin/usuarios" element={<UsuariosPage />} />
+                  <Route path="/admin/roles" element={<RolesPage />} />
+                  <Route path="/admin/permisos" element={<PermisosPage />} />
+                </Route>
+
+                {/* Inventario */}
+                <Route element={<PermissionRoute module="inventario" />}>
                   <Route path="/inventario/materiales" element={<MaterialesPage />} />
                   <Route path="/inventario/lotes"      element={<LotesPage />} />
                   <Route path="/inventario/unidades"   element={<UnidadesPage />} />
-                </Route>
-
-                {/* Inventario — ubicaciones */}
-                <Route element={<PermissionRoute module="ubicaciones" />}>
                   <Route path="/inventario/ubicaciones" element={<UbicacionesPage />} />
                 </Route>
 
-                {/* Movimientos: Solicitudes (incluye validación) + Préstamos (incluye entregas/devoluciones) */}
-                <Route element={<PermissionRoute module="prestamos" />}>
+                {/* Movimientos */}
+                <Route element={<PermissionRoute module="movimientos" />}>
                   <Route path="/movimientos/solicitudes" element={<SolicitudesPage />} />
                   <Route path="/movimientos/prestamos"   element={<PrestamosPage />} />
                 </Route>
 
-                {/* Control y Seguimiento — requires 'inventario' */}
-                <Route element={<PermissionRoute module="inventario" />}>
-                  <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="inventario" />} />
+                {/* Control y Seguimiento */}
+                <Route element={<PermissionRoute module="control" />}>
+                  <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="control" />} />
                   <Route path="/control/incidencias" element={<IncidenciasPage />} />
-                  <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="inventario" />} />
+                  <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="control" />} />
                 </Route>
 
               </Route>

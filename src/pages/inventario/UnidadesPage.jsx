@@ -11,6 +11,7 @@ import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { usePermissions } from '../../context/PermissionsContext'
 
 function Ic({ size = 16, children }) {
   return (
@@ -52,6 +53,9 @@ const EMPTY_FORM = {
 
 
 export function UnidadesPage() {
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
   const [unidades,    setUnidades]    = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
@@ -220,7 +224,7 @@ export function UnidadesPage() {
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><EditIcon /></IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><TrashIcon /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><TrashIcon /></IconButton>}
         </div>
       ),
     },
@@ -270,8 +274,8 @@ export function UnidadesPage() {
         searchable
         searchPlaceholder="Buscar por código, material, responsable…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
         emptyTitle="Sin unidades"
         emptyDescription="Registra la primera unidad física de un activo."
         emptyAction={

@@ -7,6 +7,7 @@ import { Badge } from '../../components/atoms/Badge'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AlertBanner } from '../../components/molecules/AlertBanner'
 import { useAuth } from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
 import api from '../../services/api'
 
 const ESTADOS = {
@@ -68,6 +69,8 @@ function Row({ label, value }) {
 
 export function SolicitudesPage() {
   const { user } = useAuth()
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
 
   const [solicitudes, setSolicitudes]           = useState([])
   const [solicitudLotes, setSolicitudLotes]     = useState([])
@@ -305,9 +308,11 @@ export function SolicitudesPage() {
             <button title="Rechazar" onClick={() => setRejectModal({ open: true, id: r.id_solicitud, obs: r.observaciones ?? '' })} style={btnStyle('#d97706')}>
               <XIcon />
             </button>
-            <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id_solicitud })} style={btnStyle('#dc2626')}>
-              <TrashIcon />
-            </button>
+            {isAdmin && (
+              <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id_solicitud })} style={btnStyle('#dc2626')}>
+                <TrashIcon />
+              </button>
+            )}
           </>}
         </div>
       ),

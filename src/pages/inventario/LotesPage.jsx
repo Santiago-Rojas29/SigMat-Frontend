@@ -11,6 +11,7 @@ import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { usePermissions } from '../../context/PermissionsContext'
 
 function Ic({ size = 16, children }) {
   return (
@@ -94,6 +95,9 @@ function CatBadge({ categoria }) {
 }
 
 export function LotesPage() {
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
   const [lotes,       setLotes]       = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
@@ -312,7 +316,7 @@ export function LotesPage() {
       render: (l) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><EditIcon /></IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><TrashIcon /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><TrashIcon /></IconButton>}
         </div>
       ),
     },
@@ -389,8 +393,8 @@ export function LotesPage() {
         searchable
         searchPlaceholder="Buscar por código, material, responsable…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
         emptyTitle="Sin lotes"
         emptyDescription="Registra el primer lote de consumibles o perecederos."
         emptyAction={

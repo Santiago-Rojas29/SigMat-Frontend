@@ -31,16 +31,49 @@ const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MODULOS = [
-  { value: 'materiales',  label: 'Materiales' },
-  { value: 'prestamos',   label: 'Préstamos' },
-  { value: 'inventario',  label: 'Inventario' },
-  { value: 'usuarios',    label: 'Usuarios' },
-  { value: 'ubicaciones', label: 'Ubicaciones' },
+  { value: 'estructura',    label: 'Estructura' },
+  { value: 'administracion', label: 'Administración' },
+  { value: 'inventario',    label: 'Inventario' },
+  { value: 'movimientos',   label: 'Movimientos' },
+  { value: 'control',       label: 'Control y Seguimiento' },
 ]
 
-const MODULO_LABELS = Object.fromEntries(MODULOS.map(m => [m.value, m.label]))
+const SUBMODULOS = {
+  estructura: [
+    { value: 'centros',   label: 'Centros' },
+    { value: 'sedes',     label: 'Sedes' },
+    { value: 'areas',     label: 'Áreas' },
+    { value: 'programas', label: 'Programas' },
+    { value: 'fichas',    label: 'Fichas' },
+  ],
+  administracion: [
+    { value: 'usuarios', label: 'Usuarios' },
+    { value: 'roles',    label: 'Roles' },
+    { value: 'permisos', label: 'Permisos' },
+  ],
+  inventario: [
+    { value: 'materiales',  label: 'Materiales' },
+    { value: 'lotes',       label: 'Lotes' },
+    { value: 'unidades',    label: 'Unidades' },
+    { value: 'ubicaciones', label: 'Ubicaciones' },
+  ],
+  movimientos: [
+    { value: 'solicitudes', label: 'Solicitudes' },
+    { value: 'prestamos',   label: 'Préstamos' },
+  ],
+  control: [
+    { value: 'traslados',   label: 'Traslados' },
+    { value: 'incidencias', label: 'Incidencias' },
+    { value: 'kardex',      label: 'Kardex' },
+  ],
+}
 
-const EMPTY_FORM = { nombre: '', descripcion: '', modulo: 'materiales' }
+const MODULO_LABELS    = Object.fromEntries(MODULOS.map(m => [m.value, m.label]))
+const SUBMODULO_LABELS = Object.fromEntries(
+  Object.entries(SUBMODULOS).flatMap(([, subs]) => subs.map(s => [s.value, s.label]))
+)
+
+const EMPTY_FORM = { nombre: '', descripcion: '', modulo: 'estructura', submodulos: [] }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -87,9 +120,23 @@ export function PermisosPage() {
   }
 
   const openEdit = (p) => {
-    setForm({ nombre: p.nombre, descripcion: p.descripcion, modulo: p.modulo })
+    setForm({ nombre: p.nombre, descripcion: p.descripcion, modulo: p.modulo, submodulos: p.submodulos ?? [] })
     setFormError(null)
     setModal({ mode: 'edit', data: p })
+  }
+
+  const handleModuloChange = (e) => {
+    set('modulo', e.target.value)
+    set('submodulos', [])
+  }
+
+  const toggleSubmodulo = (value) => {
+    setForm(prev => ({
+      ...prev,
+      submodulos: prev.submodulos.includes(value)
+        ? prev.submodulos.filter(v => v !== value)
+        : [...prev.submodulos, value],
+    }))
   }
 
   const closeModal = () => { setModal(null); setFormError(null) }
@@ -98,10 +145,11 @@ export function PermisosPage() {
     setSaving(true)
     setFormError(null)
     try {
+      const payload = { ...form }
       if (modal.mode === 'create') {
-        await api.post('/permisos', form)
+        await api.post('/permisos', payload)
       } else {
-        await api.patch(`/permisos/${modal.data.id}`, form)
+        await api.patch(`/permisos/${modal.data.id}`, payload)
       }
       closeModal()
       loadData()
@@ -132,13 +180,24 @@ export function PermisosPage() {
   const columns = [
     {
       key: 'modulo',
-      header: 'Módulo',
+      header: 'Módulo / Submódulo',
       render: (p) => (
-        <Badge variant="success" style={{ fontSize: 11.5 }}>
-          {MODULO_LABELS[p.modulo] ?? p.modulo}
-        </Badge>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Badge variant="success" style={{ fontSize: 11.5 }}>
+            {MODULO_LABELS[p.modulo] ?? p.modulo}
+          </Badge>
+          {(p.submodulos ?? []).length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {p.submodulos.map(s => (
+                <Badge key={s} variant="warning" style={{ fontSize: 10.5 }}>
+                  {SUBMODULO_LABELS[s] ?? s}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
       ),
-      width: 130,
+      width: 150,
     },
     {
       key: 'nombre',
@@ -226,12 +285,43 @@ export function PermisosPage() {
             <AppSelect
               size="sm"
               value={form.modulo}
-              onChange={e => set('modulo', e.target.value)}
+              onChange={handleModuloChange}
             >
               {MODULOS.map(m => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </AppSelect>
+          </FormField>
+
+          <FormField label="Submódulos (opcional)">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 2 }}>
+              {(SUBMODULOS[form.modulo] ?? []).map(s => {
+                const selected = form.submodulos.includes(s.value)
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => toggleSubmodulo(s.value)}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 999,
+                      border: `1.5px solid ${selected ? '#16a34a' : '#d1d5db'}`,
+                      background: selected ? '#dcfce7' : '#f9fafb',
+                      color: selected ? '#15803d' : '#4b5563',
+                      fontSize: 12.5,
+                      fontWeight: selected ? 600 : 400,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p style={{ fontSize: 11.5, color: '#9ca3af', margin: '5px 0 0' }}>
+              Sin selección = acceso a todo el módulo
+            </p>
           </FormField>
 
           <FormField label="Nombre del permiso" required>

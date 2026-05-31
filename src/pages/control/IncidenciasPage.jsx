@@ -7,6 +7,7 @@ import { Badge } from '../../components/atoms/Badge'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AlertBanner } from '../../components/molecules/AlertBanner'
 import { useAuth } from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
 import api from '../../services/api'
 
 const TIPOS = {
@@ -62,6 +63,8 @@ function Row({ label, value }) {
 
 export function IncidenciasPage() {
   const { user } = useAuth()
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
 
   const [incidencias, setIncidencias] = useState([])
   const [unidades,    setUnidades]    = useState([])
@@ -251,9 +254,11 @@ export function IncidenciasPage() {
               <EditIcon />
             </button>
           )}
-          <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id })} style={btnStyle('#dc2626')}>
-            <TrashIcon />
-          </button>
+          {isAdmin && (
+            <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id })} style={btnStyle('#dc2626')}>
+              <TrashIcon />
+            </button>
+          )}
         </div>
       ),
     },

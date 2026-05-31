@@ -34,6 +34,7 @@ const icons = {
   shuffle:   (s) => <Ic size={s}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></Ic>,
   alert:     (s) => <Ic size={s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></Ic>,
   chart:     (s) => <Ic size={s}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></Ic>,
+  lock:      (s) => <Ic size={s}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></Ic>,
 }
 
 const NAV = [
@@ -46,7 +47,7 @@ const NAV = [
   },
   {
     section: 'Estructura',
-    sectionModule: null,
+    sectionModule: 'administracion',
     items: [
       { label: 'Centros',   path: '/estructura/centros',   icon: 'building',  module: null },
       { label: 'Sedes',     path: '/estructura/sedes',     icon: 'mapPin',    module: null },
@@ -57,37 +58,38 @@ const NAV = [
   },
   {
     section: 'Administración',
-    sectionModule: 'usuarios',
+    sectionModule: 'administracion',
     items: [
-      { label: 'Usuarios', path: '/admin/usuarios', icon: 'users',  module: 'usuarios' },
-      { label: 'Roles',    path: '/admin/roles',    icon: 'shield', module: 'usuarios' },
+      { label: 'Usuarios', path: '/admin/usuarios', icon: 'users',  module: 'administracion' },
+      { label: 'Roles',    path: '/admin/roles',    icon: 'shield', module: 'administracion' },
+      { label: 'Permisos', path: '/admin/permisos', icon: 'lock',   module: 'administracion' },
     ],
   },
   {
     section: 'Inventario',
-    sectionModule: ['materiales', 'ubicaciones'],
+    sectionModule: 'inventario',
     items: [
-      { label: 'Materiales',  path: '/inventario/materiales',  icon: 'package', module: 'materiales' },
-      { label: 'Lotes',       path: '/inventario/lotes',       icon: 'layers',  module: 'materiales' },
-      { label: 'Unidades',    path: '/inventario/unidades',    icon: 'tool',    module: 'materiales' },
-      { label: 'Ubicaciones', path: '/inventario/ubicaciones', icon: 'mapPin',  module: 'ubicaciones' },
+      { label: 'Materiales',  path: '/inventario/materiales',  icon: 'package', module: 'inventario' },
+      { label: 'Lotes',       path: '/inventario/lotes',       icon: 'layers',  module: 'inventario' },
+      { label: 'Unidades',    path: '/inventario/unidades',    icon: 'tool',    module: 'inventario' },
+      { label: 'Ubicaciones', path: '/inventario/ubicaciones', icon: 'mapPin',  module: 'inventario' },
     ],
   },
   {
     section: 'Movimientos',
-    sectionModule: 'prestamos',
+    sectionModule: 'movimientos',
     items: [
-      { label: 'Solicitudes', path: '/movimientos/solicitudes', icon: 'file',   module: 'prestamos' },
-      { label: 'Préstamos',   path: '/movimientos/prestamos',   icon: 'arrows', module: 'prestamos' },
+      { label: 'Solicitudes', path: '/movimientos/solicitudes', icon: 'file',   module: 'movimientos' },
+      { label: 'Préstamos',   path: '/movimientos/prestamos',   icon: 'arrows', module: 'movimientos' },
     ],
   },
   {
     section: 'Control y Seguimiento',
-    sectionModule: 'inventario',
+    sectionModule: 'control',
     items: [
-      { label: 'Traslados',   path: '/control/traslados',   icon: 'shuffle', module: 'inventario' },
-      { label: 'Incidencias', path: '/control/incidencias', icon: 'alert',   module: 'inventario' },
-      { label: 'Kardex',      path: '/control/kardex',      icon: 'chart',   module: 'inventario' },
+      { label: 'Traslados',   path: '/control/traslados',   icon: 'shuffle', module: 'control' },
+      { label: 'Incidencias', path: '/control/incidencias', icon: 'alert',   module: 'control' },
+      { label: 'Kardex',      path: '/control/kardex',      icon: 'chart',   module: 'control' },
     ],
   },
 ]

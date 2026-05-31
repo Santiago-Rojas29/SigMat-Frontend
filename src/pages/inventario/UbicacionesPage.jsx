@@ -11,6 +11,7 @@ import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { usePermissions } from '../../context/PermissionsContext'
 
 function Ic({ size = 16, children }) {
   return (
@@ -37,6 +38,9 @@ const PALETA = [
 
 
 export function UbicacionesPage() {
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
   const [tipos,       setTipos]       = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [areas,       setAreas]       = useState([])
@@ -244,7 +248,7 @@ export function UbicacionesPage() {
       render: u => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><EditIcon /></IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><TrashIcon /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><TrashIcon /></IconButton>}
         </div>
       ),
     },
@@ -297,8 +301,8 @@ export function UbicacionesPage() {
         searchable
         searchPlaceholder="Buscar por nombre, tipo, área…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
         emptyTitle="Sin ubicaciones"
         emptyDescription="Registra la primera ubicación del almacén."
         emptyAction={

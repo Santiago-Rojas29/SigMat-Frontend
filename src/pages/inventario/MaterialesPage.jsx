@@ -11,6 +11,7 @@ import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { usePermissions } from '../../context/PermissionsContext'
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,9 @@ const CARDS_MAT = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function MaterialesPage() {
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
   const [materiales,   setMateriales]   = useState([])
   const [fichas,       setFichas]       = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -199,7 +203,7 @@ export function MaterialesPage() {
       render: (m) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit"   title="Editar"    onClick={() => openEdit(m)}><EditIcon /></IconButton>
-          <IconButton variant="delete" title="Eliminar"  onClick={() => setDeleteTarget(m)}><TrashIcon /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar"  onClick={() => setDeleteTarget(m)}><TrashIcon /></IconButton>}
         </div>
       ),
     },
@@ -251,8 +255,8 @@ export function MaterialesPage() {
         searchable
         searchPlaceholder="Buscar por nombre, marca, modelo…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
         emptyTitle="Sin materiales"
         emptyDescription={activeCateg ? `No hay materiales en la categoría ${cfg(activeCateg).label}.` : 'Agrega el primer material al catálogo.'}
         emptyAction={
