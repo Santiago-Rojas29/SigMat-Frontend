@@ -136,7 +136,7 @@ export function LotesPage() {
     ...l,
     _material:    materiales.find(m => m.id === l.id_material),
     _responsable: usuarios.find(u => u.id === l.id_responsable),
-    _ubicacion:   ubicaciones.find(u => u.id === l.id_ubicacion),
+    _ubicacion:   ubicaciones.find(u => u.id_ubicacion === l.id_ubicacion),
   })), [lotes, materiales, usuarios, ubicaciones])
 
   const counts = useMemo(() => ({
@@ -163,7 +163,7 @@ export function LotesPage() {
 
   const openCreate = () => {
     const primerMat = materialesValidos[0]
-    setForm({ ...EMPTY_FORM, id_material: primerMat?.id ?? '', id_responsable: usuarios[0]?.id ?? '', id_ubicacion: ubicaciones[0]?.id ?? '' })
+    setForm({ ...EMPTY_FORM, id_material: primerMat?.id ?? '', id_responsable: usuarios[0]?.id ?? '', id_ubicacion: String(ubicaciones[0]?.id_ubicacion ?? '') })
     setFormError(null)
     setModal({ mode: 'create' })
   }
@@ -172,7 +172,7 @@ export function LotesPage() {
     setForm({
       id_material:         l.id_material,
       id_responsable:      l.id_responsable,
-      id_ubicacion:        l.id_ubicacion,
+      id_ubicacion:        String(l.id_ubicacion ?? ''),
       codigo_lote:         l.codigo_lote,
       cantidad_inicial:    l.cantidad_inicial,
       cantidad_disponible: l.cantidad_disponible,
@@ -506,7 +506,7 @@ export function LotesPage() {
               <AppSelect size="sm" value={form.id_ubicacion} onChange={e => set('id_ubicacion', e.target.value)}>
                 <option value="">— Seleccionar —</option>
                 {ubicaciones.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                  <option key={u.id_ubicacion} value={u.id_ubicacion}>{u.nombre}</option>
                 ))}
               </AppSelect>
             </FormField>

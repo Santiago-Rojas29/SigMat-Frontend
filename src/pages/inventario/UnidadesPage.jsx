@@ -94,7 +94,7 @@ export function UnidadesPage() {
     ...u,
     _material:    materiales.find(m => m.id === u.id_material),
     _responsable: usuarios.find(us => us.id === u.id_responsable),
-    _ubicacion:   ubicaciones.find(ub => ub.id === u.id_ubicacion),
+    _ubicacion:   ubicaciones.find(ub => ub.id_ubicacion === u.id_ubicacion),
   })), [unidades, materiales, usuarios, ubicaciones])
 
   const counts = useMemo(() => {
@@ -118,7 +118,7 @@ export function UnidadesPage() {
       ...EMPTY_FORM,
       id_material:   materialesNoConsumibles[0]?.id ?? '',
       id_responsable:usuarios[0]?.id ?? '',
-      id_ubicacion:  ubicaciones[0]?.id ?? '',
+      id_ubicacion:  String(ubicaciones[0]?.id_ubicacion ?? ''),
     })
     setFormError(null)
     setModal({ mode: 'create' })
@@ -128,7 +128,7 @@ export function UnidadesPage() {
     setForm({
       id_material:   u.id_material,
       id_responsable:u.id_responsable,
-      id_ubicacion:  u.id_ubicacion,
+      id_ubicacion:  String(u.id_ubicacion ?? ''),
       codigo_unidad: u.codigo_unidad,
       estado:        u.estado,
     })
@@ -343,7 +343,7 @@ export function UnidadesPage() {
               <AppSelect size="sm" value={form.id_ubicacion} onChange={e => set('id_ubicacion', e.target.value)}>
                 <option value="">— Seleccionar —</option>
                 {ubicaciones.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                  <option key={u.id_ubicacion} value={u.id_ubicacion}>{u.nombre}</option>
                 ))}
               </AppSelect>
             </FormField>

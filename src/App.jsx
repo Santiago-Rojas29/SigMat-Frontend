@@ -15,7 +15,6 @@ import { AreasPage }        from './pages/estructura/AreasPage'
 import { ProgramasPage }    from './pages/estructura/ProgramasPage'
 import { FichasPage }       from './pages/estructura/FichasPage'
 import { RolesPage }       from './pages/admin/RolesPage'
-import { PermisosPage }   from './pages/admin/PermisosPage'
 import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
 import { MaterialesPage }   from './pages/inventario/MaterialesPage'
 import { LotesPage }        from './pages/inventario/LotesPage'
@@ -54,7 +53,6 @@ function App() {
                 <Route element={<PermissionRoute module="administracion" />}>
                   <Route path="/admin/usuarios" element={<UsuariosPage />} />
                   <Route path="/admin/roles" element={<RolesPage />} />
-                  <Route path="/admin/permisos" element={<PermisosPage />} />
                 </Route>
 
                 {/* Inventario */}

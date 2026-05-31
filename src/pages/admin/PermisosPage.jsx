@@ -28,50 +28,9 @@ const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path 
 const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
 const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
 
+import { MODULOS, SUBMODULOS, MODULO_LABELS, SUBMODULO_LABELS } from '../../constants/permisos.constants'
+
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const MODULOS = [
-  { value: 'estructura',    label: 'Estructura' },
-  { value: 'administracion', label: 'Administración' },
-  { value: 'inventario',    label: 'Inventario' },
-  { value: 'movimientos',   label: 'Movimientos' },
-  { value: 'control',       label: 'Control y Seguimiento' },
-]
-
-const SUBMODULOS = {
-  estructura: [
-    { value: 'centros',   label: 'Centros' },
-    { value: 'sedes',     label: 'Sedes' },
-    { value: 'areas',     label: 'Áreas' },
-    { value: 'programas', label: 'Programas' },
-    { value: 'fichas',    label: 'Fichas' },
-  ],
-  administracion: [
-    { value: 'usuarios', label: 'Usuarios' },
-    { value: 'roles',    label: 'Roles' },
-    { value: 'permisos', label: 'Permisos' },
-  ],
-  inventario: [
-    { value: 'materiales',  label: 'Materiales' },
-    { value: 'lotes',       label: 'Lotes' },
-    { value: 'unidades',    label: 'Unidades' },
-    { value: 'ubicaciones', label: 'Ubicaciones' },
-  ],
-  movimientos: [
-    { value: 'solicitudes', label: 'Solicitudes' },
-    { value: 'prestamos',   label: 'Préstamos' },
-  ],
-  control: [
-    { value: 'traslados',   label: 'Traslados' },
-    { value: 'incidencias', label: 'Incidencias' },
-    { value: 'kardex',      label: 'Kardex' },
-  ],
-}
-
-const MODULO_LABELS    = Object.fromEntries(MODULOS.map(m => [m.value, m.label]))
-const SUBMODULO_LABELS = Object.fromEntries(
-  Object.entries(SUBMODULOS).flatMap(([, subs]) => subs.map(s => [s.value, s.label]))
-)
 
 const EMPTY_FORM = { nombre: '', descripcion: '', modulo: 'estructura', submodulos: [] }
 

@@ -43,9 +43,25 @@ const CATEGORIA_OPTIONS = [
   { value: 'perecedero',    label: 'Perecedero' },
 ]
 
+const UNIDADES_MEDIDA = [
+  { value: 'und',     label: 'Unidades (und)' },
+  { value: 'cja',     label: 'Cajas (cja)' },
+  { value: 'paq',     label: 'Paquetes (paq)' },
+  { value: 'res',     label: 'Resmas (res)' },
+  { value: 'bol',     label: 'Bolsas (bol)' },
+  { value: 'rol',     label: 'Rollos (rol)' },
+  { value: 'L',       label: 'Litros (L)' },
+  { value: 'mL',      label: 'Mililitros (mL)' },
+  { value: 'kg',      label: 'Kilogramos (kg)' },
+  { value: 'g',       label: 'Gramos (g)' },
+  { value: 'm',       label: 'Metros (m)' },
+  { value: 'cm',      label: 'Centímetros (cm)' },
+]
+
 const EMPTY_FORM = {
   id_ficha: '', nombre: '', categoria: 'consumible',
   tipo: '', marca: '', modelo: '', descripcion: '', codigo_unspsc: '',
+  unidad_medida: '', fecha_vencimiento: '',
 }
 
 const CARDS_MAT = [
@@ -119,6 +135,8 @@ export function MaterialesPage() {
       id_ficha: m.id_ficha, nombre: m.nombre, categoria: m.categoria,
       tipo: m.tipo, marca: m.marca, modelo: m.modelo,
       descripcion: m.descripcion, codigo_unspsc: m.codigo_unspsc,
+      unidad_medida: m.unidad_medida ?? '',
+      fecha_vencimiento: m.fecha_vencimiento ? m.fecha_vencimiento.substring(0, 10) : '',
     })
     setFormError(null)
     setModal({ mode: 'edit', data: m })
@@ -129,10 +147,13 @@ export function MaterialesPage() {
   const handleSave = async () => {
     setSaving(true); setFormError(null)
     try {
+      const payload = { ...form }
+      if (!payload.unidad_medida)    delete payload.unidad_medida
+      if (!payload.fecha_vencimiento) delete payload.fecha_vencimiento
       if (modal.mode === 'create') {
-        await api.post('/material', form)
+        await api.post('/material', payload)
       } else {
-        await api.patch(`/material/${modal.data.id}`, form)
+        await api.patch(`/material/${modal.data.id}`, payload)
       }
       closeModal(); loadData()
     } catch (e) {
@@ -185,6 +206,37 @@ export function MaterialesPage() {
     { key: 'marca',  header: 'Marca',  render: (m) => <span style={{ color: '#374151' }}>{m.marca}</span> },
     { key: 'modelo', header: 'Modelo', render: (m) => <span style={{ color: '#374151' }}>{m.modelo}</span> },
     { key: 'tipo',   header: 'Tipo',   render: (m) => <span style={{ color: '#6b7280' }}>{m.tipo}</span> },
+    {
+      key: 'unidad_medida',
+      header: 'Unidad',
+      width: 90,
+      render: (m) => m.unidad_medida
+        ? <Badge variant="default" style={{ fontSize: 11 }}>{m.unidad_medida}</Badge>
+        : <span style={{ color: '#d1d5db' }}>—</span>,
+    },
+    {
+      key: 'fecha_vencimiento',
+      header: 'Vencimiento',
+      width: 120,
+      render: (m) => {
+        if (!m.fecha_vencimiento) return <span style={{ color: '#d1d5db' }}>—</span>
+        const fecha = new Date(m.fecha_vencimiento)
+        const hoy   = new Date()
+        const diff  = Math.ceil((fecha - hoy) / (1000 * 60 * 60 * 24))
+        const vencido = diff < 0
+        const proximo = diff >= 0 && diff <= 30
+        return (
+          <span style={{
+            fontSize: 12, fontWeight: 500,
+            color: vencido ? '#dc2626' : proximo ? '#d97706' : '#374151',
+          }}>
+            {fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {vencido && <span style={{ marginLeft: 4, fontSize: 10, color: '#dc2626' }}>● Vencido</span>}
+            {proximo && <span style={{ marginLeft: 4, fontSize: 10, color: '#d97706' }}>● Próximo</span>}
+          </span>
+        )
+      },
+    },
     {
       key: 'codigo_unspsc',
       header: 'Cód. UNSPSC',
@@ -316,6 +368,30 @@ export function MaterialesPage() {
               })}
             </div>
           </div>
+
+          {/* Campos condicionales por categoría */}
+          {(form.categoria === 'consumible' || form.categoria === 'perecedero') && (
+            <div style={{ display: 'flex', gap: 14 }}>
+              <FormField label="Unidad de medida" required>
+                <AppSelect size="sm" value={form.unidad_medida} onChange={e => set('unidad_medida', e.target.value)}>
+                  <option value="">— Seleccionar —</option>
+                  {UNIDADES_MEDIDA.map(u => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
+                </AppSelect>
+              </FormField>
+              {form.categoria === 'perecedero' && (
+                <FormField label="Fecha de vencimiento" required>
+                  <AppInput
+                    size="sm"
+                    type="date"
+                    value={form.fecha_vencimiento}
+                    onChange={e => set('fecha_vencimiento', e.target.value)}
+                  />
+                </FormField>
+              )}
+            </div>
+          )}
 
           {/* Fila: nombre + ficha */}
           <div style={{ display: 'flex', gap: 14 }}>

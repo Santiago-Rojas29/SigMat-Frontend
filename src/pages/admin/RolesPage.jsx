@@ -27,15 +27,7 @@ const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path 
 const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
 const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
 
-// ── Constantes ────────────────────────────────────────────────────────────────
-
-const MODULO_LABELS = {
-  materiales:  { label: 'Materiales',  desc: 'Materiales, lotes y unidades del almacén' },
-  prestamos:   { label: 'Préstamos',   desc: 'Solicitudes y préstamos de materiales' },
-  inventario:  { label: 'Inventario',  desc: 'Traslados, incidencias y kardex' },
-  usuarios:    { label: 'Usuarios',    desc: 'Gestión de usuarios y roles del sistema' },
-  ubicaciones: { label: 'Ubicaciones', desc: 'Ubicaciones físicas del almacén' },
-}
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = { nombre: '', descripcion: '' }
 
@@ -43,14 +35,12 @@ const EMPTY_FORM = { nombre: '', descripcion: '' }
 
 export function RolesPage() {
   const [roles,    setRoles]    = useState([])
-  const [permisos, setPermisos] = useState([])   // lista de permisos de la BD
-  const [rolPerms, setRolPerms] = useState([])   // tabla rol_permisos completa
+  const [usuarios, setUsuarios] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
 
-  const [modal,     setModal]     = useState(null)   // null | { mode: 'create'|'edit', data? }
+  const [modal,     setModal]     = useState(null)  // null | { mode: 'create'|'edit', data? }
   const [form,      setForm]      = useState(EMPTY_FORM)
-  const [checked,   setChecked]   = useState([])     // ids de permisos marcados
   const [saving,    setSaving]    = useState(false)
   const [formError, setFormError] = useState(null)
 
@@ -63,14 +53,12 @@ export function RolesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [rRes, pRes, rpRes] = await Promise.all([
+      const [rRes, uRes] = await Promise.all([
         api.get('/rol'),
-        api.get('/permisos'),
-        api.get('/rol-permisos'),
+        api.get('/usuario'),
       ])
       setRoles(rRes.data)
-      setPermisos(pRes.data)
-      setRolPerms(rpRes.data)
+      setUsuarios(uRes.data)
     } catch {
       setError('No se pudo cargar la información.')
     } finally {
@@ -83,43 +71,23 @@ export function RolesPage() {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const usuariosPorRol = (id_rol) => usuarios.filter(u => u.id_rol === id_rol).length
 
-  // Devuelve los módulos asignados a un rol (para mostrar en la tabla)
-  const modulosDeRol = (id_rol) => {
-    const idsPermiso = rolPerms
-      .filter(rp => rp.id_rol === id_rol)
-      .map(rp => rp.id_permiso)
-    return permisos
-      .filter(p => idsPermiso.includes(p.id))
-      .map(p => p.modulo)
-  }
-
-  const togglePermiso = (id) =>
-    setChecked(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-
-  // ── Abrir modales ─────────────────────────────────────────────────────────
+  // ── Modal handlers ────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setForm(EMPTY_FORM)
-    setChecked([])
     setFormError(null)
     setModal({ mode: 'create' })
   }
 
   const openEdit = (rol) => {
     setForm({ nombre: rol.nombre, descripcion: rol.descripcion })
-    // Pre-marcar los permisos que ya tiene este rol
-    const actuales = rolPerms
-      .filter(rp => rp.id_rol === rol.id)
-      .map(rp => rp.id_permiso)
-    setChecked(actuales)
     setFormError(null)
     setModal({ mode: 'edit', data: rol })
   }
 
   const closeModal = () => { setModal(null); setFormError(null) }
-
-  // ── Guardar ───────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!form.nombre.trim()) {
@@ -129,34 +97,11 @@ export function RolesPage() {
     setSaving(true)
     setFormError(null)
     try {
-      let rolId
-
       if (modal.mode === 'create') {
-        // 1. Crear el rol
-        const { data } = await api.post('/rol', form)
-        rolId = data.id
-        // 2. Asignar todos los permisos marcados
-        await Promise.all(
-          checked.map(id_permiso =>
-            api.post('/rol-permisos', { id_rol: rolId, id_permiso })
-          )
-        )
+        await api.post('/rol', form)
       } else {
-        // 1. Actualizar datos del rol
-        rolId = modal.data.id
-        await api.patch(`/rol/${rolId}`, form)
-        // 2. Asignar solo los permisos NUEVOS (los que no tenía antes)
-        const anteriores = rolPerms
-          .filter(rp => rp.id_rol === rolId)
-          .map(rp => rp.id_permiso)
-        const nuevos = checked.filter(id => !anteriores.includes(id))
-        await Promise.all(
-          nuevos.map(id_permiso =>
-            api.post('/rol-permisos', { id_rol: rolId, id_permiso })
-          )
-        )
+        await api.patch(`/rol/${modal.data.id}`, form)
       }
-
       closeModal()
       loadData()
     } catch (e) {
@@ -166,8 +111,6 @@ export function RolesPage() {
       setSaving(false)
     }
   }
-
-  // ── Eliminar ──────────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -183,36 +126,35 @@ export function RolesPage() {
     }
   }
 
-  // ── Columnas de la tabla ──────────────────────────────────────────────────
+  // ── Columnas ──────────────────────────────────────────────────────────────
 
   const columns = [
     {
       key: 'nombre',
       header: 'Rol',
-      render: (r) => <span style={{ fontWeight: 600, color: '#111827' }}>{r.nombre}</span>,
+      render: (r) => (
+        <span style={{ fontWeight: 600, color: '#111827' }}>{r.nombre}</span>
+      ),
     },
     {
       key: 'descripcion',
       header: 'Descripción',
-      render: (r) => <span style={{ color: '#6b7280' }}>{r.descripcion}</span>,
+      render: (r) => (
+        <span style={{ color: '#6b7280' }}>{r.descripcion || '—'}</span>
+      ),
     },
     {
-      key: 'accesos',
-      header: 'Accesos',
+      key: 'usuarios',
+      header: 'Usuarios asignados',
       render: (r) => {
-        const mods = modulosDeRol(r.id)
-        if (mods.length === 0)
-          return <span style={{ color: '#9ca3af', fontSize: 13 }}>Sin accesos</span>
+        const total = usuariosPorRol(r.id)
         return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {mods.map(m => (
-              <Badge key={m} variant="success" style={{ fontSize: 11 }}>
-                {MODULO_LABELS[m]?.label ?? m}
-              </Badge>
-            ))}
-          </div>
+          <Badge variant={total > 0 ? 'success' : 'default'} style={{ fontSize: 12 }}>
+            {total} {total === 1 ? 'usuario' : 'usuarios'}
+          </Badge>
         )
       },
+      width: 160,
     },
     {
       key: 'acciones',
@@ -238,7 +180,7 @@ export function RolesPage() {
     <div>
       <PageHeader
         title="Roles"
-        description="Crea roles y define a qué módulos tienen acceso"
+        description="Categorías de usuario del sistema. Los permisos se asignan individualmente desde el módulo de Usuarios."
       />
 
       <DataTable
@@ -269,7 +211,7 @@ export function RolesPage() {
         }
       />
 
-      {/* ── Modal crear / editar ────────────────────────────────────────────── */}
+      {/* Modal crear / editar */}
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
@@ -286,79 +228,58 @@ export function RolesPage() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Datos básicos */}
           <FormField label="Nombre del rol" required>
             <AppInput
               size="sm"
               value={form.nombre}
-              placeholder="Ej. Instructor"
+              placeholder="Ej. Instructor, Aprendiz, Coordinador"
               onChange={e => set('nombre', e.target.value)}
             />
           </FormField>
 
-          <FormField label="Descripción" required>
+          <FormField label="Descripción">
             <AppInput
               size="sm"
               value={form.descripcion}
-              placeholder="Ej. Gestiona préstamos y materiales del SENA"
+              placeholder="Ej. Encargado de gestionar préstamos del almacén"
               onChange={e => set('descripcion', e.target.value)}
             />
           </FormField>
 
-          {/* Separador */}
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
-              Módulos con acceso
+          {/* Aviso informativo */}
+          <div style={{
+            background: '#f0f9ff',
+            border: '1px solid #bae6fd',
+            borderRadius: 8,
+            padding: '10px 14px',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p style={{ fontSize: 12.5, color: '#0369a1', margin: 0, lineHeight: 1.5 }}>
+              Los permisos se asignan directamente a cada usuario desde el módulo de Usuarios.
+              El rol es solo una etiqueta de clasificación.
             </p>
-
-            {/* Checkboxes de permisos */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {permisos.map(p => {
-                const isChecked = checked.includes(p.id)
-                const info = MODULO_LABELS[p.modulo] ?? { label: p.modulo, desc: p.descripcion }
-                return (
-                  <label
-                    key={p.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-                      border: `1.5px solid ${isChecked ? '#39A900' : '#e5e7eb'}`,
-                      background: isChecked ? 'rgba(57,169,0,0.05)' : '#fafafa',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => togglePermiso(p.id)}
-                      style={{ accentColor: '#39A900', width: 16, height: 16, flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13.5, color: '#111827' }}>
-                        {info.label}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>
-                        {info.desc}
-                      </div>
-                    </div>
-                  </label>
-                )
-              })}
-            </div>
           </div>
 
           {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
-      {/* ── Confirmar eliminación ───────────────────────────────────────────── */}
+      {/* Confirmar eliminación */}
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Eliminar rol"
         description={
           deleteTarget
-            ? <>¿Eliminar el rol <strong>{deleteTarget.nombre}</strong>? Los usuarios con este rol perderán su asignación.</>
+            ? <>¿Eliminar el rol <strong>{deleteTarget.nombre}</strong>? Los usuarios con este rol seguirán existiendo pero quedarán sin categoría.</>
             : null
         }
         confirmLabel="Sí, eliminar"
