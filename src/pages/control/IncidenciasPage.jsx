@@ -156,7 +156,7 @@ export function IncidenciasPage() {
     try {
       await api.post('/incidencia', {
         id_unidad:        form.id_unidad,
-        id_usuario:       user.id_usuario,
+        id_usuario:       user.id,
         tipo:             form.tipo,
         fecha_incidencia: new Date(form.fecha_incidencia).toISOString(),
         descripcion:      form.descripcion.trim(),

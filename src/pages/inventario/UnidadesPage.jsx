@@ -48,7 +48,7 @@ const CARDS = [
 
 const EMPTY_FORM = {
   id_material: '', id_responsable: '', id_ubicacion: '',
-  codigo_unidad: '', estado: 'disponible',
+  codigo_unidad: '', estado: 'disponible', id_ficha: '',
 }
 
 
@@ -60,6 +60,7 @@ export function UnidadesPage() {
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
+  const [fichas,      setFichas]      = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -74,16 +75,18 @@ export function UnidadesPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [uRes, mRes, usRes, ubRes] = await Promise.all([
+      const [uRes, mRes, usRes, ubRes, fRes] = await Promise.all([
         api.get('/unidad'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
+        api.get('/ficha'),
       ])
       setUnidades(uRes.data)
       setMateriales(mRes.data)
       setUsuarios(usRes.data)
       setUbicaciones(ubRes.data)
+      setFichas(fRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -95,7 +98,8 @@ export function UnidadesPage() {
     _material:    materiales.find(m => m.id === u.id_material),
     _responsable: usuarios.find(us => us.id === u.id_responsable),
     _ubicacion:   ubicaciones.find(ub => ub.id_ubicacion === u.id_ubicacion),
-  })), [unidades, materiales, usuarios, ubicaciones])
+    _ficha:       fichas.find(f => f.id_ficha === u.id_ficha),
+  })), [unidades, materiales, usuarios, ubicaciones, fichas])
 
   const counts = useMemo(() => {
     const base = { total: unidadesRicas.length }
@@ -131,6 +135,7 @@ export function UnidadesPage() {
       id_ubicacion:  String(u.id_ubicacion ?? ''),
       codigo_unidad: u.codigo_unidad,
       estado:        u.estado,
+      id_ficha:      u.id_ficha ?? '',
     })
     setFormError(null)
     setModal({ mode: 'edit', data: u })
@@ -141,10 +146,11 @@ export function UnidadesPage() {
   const handleSave = async () => {
     setSaving(true); setFormError(null)
     try {
+      const payload = { ...form, id_ficha: form.id_ficha || null }
       if (modal.mode === 'create') {
-        await api.post('/unidad', form)
+        await api.post('/unidad', payload)
       } else {
-        await api.patch(`/unidad/${modal.data.id_unidad}`, form)
+        await api.patch(`/unidad/${modal.data.id_unidad}`, payload)
       }
       closeModal(); loadData()
     } catch (e) {
@@ -215,6 +221,13 @@ export function UnidadesPage() {
       render: (u) => (
         <span style={{ color: '#374151' }}>{u._ubicacion?.nombre ?? '—'}</span>
       ),
+    },
+    {
+      key: 'ficha',
+      header: 'Ficha',
+      render: (u) => u._ficha
+        ? <span style={{ fontSize: 12.5, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 20 }}>{u._ficha.codigo_ficha}</span>
+        : <span style={{ color: '#9ca3af', fontSize: 12 }}>Sin ficha</span>,
     },
     {
       key: 'acciones',
@@ -353,6 +366,15 @@ export function UnidadesPage() {
             <AppSelect size="sm" value={form.estado} onChange={e => set('estado', e.target.value)}>
               {ESTADOS_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </AppSelect>
+          </FormField>
+
+          <FormField label="Ficha asignada" hint="Opcional — ficha a la que pertenece esta unidad">
+            <AppSelect size="sm" value={form.id_ficha} onChange={e => set('id_ficha', e.target.value)}>
+              <option value="">— Sin ficha —</option>
+              {fichas.map(f => (
+                <option key={f.id_ficha} value={f.id_ficha}>{f.codigo_ficha}</option>
               ))}
             </AppSelect>
           </FormField>

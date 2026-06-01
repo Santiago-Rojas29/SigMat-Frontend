@@ -26,6 +26,7 @@ const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5"
 const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
 const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
 const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
+const FichaIcon   = () => <Ic size={15}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></Ic>
 
 const CATEGORIAS_MAT = {
   'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
@@ -102,6 +103,8 @@ export function LotesPage() {
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
+  const [fichas,      setFichas]      = useState([])
+  const [loteFichas,  setLoteFichas]  = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -113,19 +116,30 @@ export function LotesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
 
+  const [fichaModal,    setFichaModal]    = useState(null)
+  const [fichaForm,     setFichaForm]     = useState({ id_ficha: '', cantidad: '' })
+  const [fichaEditId,   setFichaEditId]   = useState(null)
+  const [fichaSaving,   setFichaSaving]   = useState(false)
+  const [fichaError,    setFichaError]    = useState(null)
+  const [fichaDeleting, setFichaDeleting] = useState(null)
+
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [lRes, mRes, uRes, ubRes] = await Promise.all([
+      const [lRes, mRes, uRes, ubRes, fRes, lfRes] = await Promise.all([
         api.get('/lote'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
+        api.get('/ficha'),
+        api.get('/lote-ficha'),
       ])
       setLotes(lRes.data)
       setMateriales(mRes.data)
       setUsuarios(uRes.data)
       setUbicaciones(ubRes.data)
+      setFichas(fRes.data)
+      setLoteFichas(lfRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -232,6 +246,59 @@ export function LotesPage() {
     loadData()
   }
 
+  const openFichaModal = (lote) => {
+    setFichaModal(lote)
+    setFichaForm({ id_ficha: '', cantidad: '' })
+    setFichaEditId(null)
+    setFichaError(null)
+  }
+
+  const fichasDelLote = useMemo(() =>
+    fichaModal ? loteFichas.filter(lf => lf.id_lote === fichaModal.id_lote) : [],
+    [fichaModal, loteFichas]
+  )
+
+  const fichasDisponibles = useMemo(() =>
+    fichas.filter(f => !fichasDelLote.some(lf => lf.id_ficha === f.id_ficha && lf.id !== fichaEditId)),
+    [fichas, fichasDelLote, fichaEditId]
+  )
+
+  const handleFichaGuardar = async () => {
+    if (!fichaForm.id_ficha || !fichaForm.cantidad) { setFichaError('Selecciona una ficha e ingresa la cantidad.'); return }
+    setFichaSaving(true); setFichaError(null)
+    try {
+      if (fichaEditId) {
+        await api.patch(`/lote-ficha/${fichaEditId}`, { cantidad: Number(fichaForm.cantidad) })
+      } else {
+        await api.post('/lote-ficha', { id_lote: fichaModal.id_lote, id_ficha: fichaForm.id_ficha, cantidad: Number(fichaForm.cantidad) })
+      }
+      const lfRes = await api.get('/lote-ficha')
+      setLoteFichas(lfRes.data)
+      setFichaForm({ id_ficha: '', cantidad: '' })
+      setFichaEditId(null)
+    } catch (e) {
+      const msg = e.response?.data?.message
+      setFichaError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+    } finally { setFichaSaving(false) }
+  }
+
+  const handleFichaEliminar = async (id) => {
+    setFichaDeleting(id)
+    try {
+      await api.delete(`/lote-ficha/${id}`)
+      setLoteFichas(prev => prev.filter(lf => lf.id !== id))
+    } catch (e) {
+      const msg = e.response?.data?.message
+      setFichaError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+    } finally { setFichaDeleting(null) }
+  }
+
+  const handleFichaEditar = (lf) => {
+    setFichaEditId(lf.id)
+    setFichaForm({ id_ficha: lf.id_ficha, cantidad: String(lf.cantidad) })
+    setFichaError(null)
+  }
+
   const columns = [
     { key: 'id_lote', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110 },
     {
@@ -315,6 +382,10 @@ export function LotesPage() {
       width: 90,
       render: (l) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <IconButton title="Gestionar fichas" onClick={() => openFichaModal(l)}
+            style={{ color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+            <FichaIcon />
+          </IconButton>
           <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><EditIcon /></IconButton>
           {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><TrashIcon /></IconButton>}
         </div>
@@ -545,6 +616,94 @@ export function LotesPage() {
           )}
 
           {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+        </div>
+      </AppModal>
+
+      <AppModal
+        isOpen={!!fichaModal}
+        onClose={() => { setFichaModal(null); setFichaEditId(null); setFichaError(null) }}
+        title={`Fichas asignadas — ${fichaModal?.codigo_lote ?? ''}`}
+        footer={
+          <AppButton variant="ghost" size="compact" onClick={() => { setFichaModal(null); setFichaEditId(null); setFichaError(null) }}>
+            Cerrar
+          </AppButton>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {fichasDelLote.length === 0 ? (
+            <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+              Este lote no tiene fichas asignadas aún.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {fichasDelLote.map(lf => {
+                const ficha = fichas.find(f => f.id_ficha === lf.id_ficha)
+                const isEditing = fichaEditId === lf.id
+                return (
+                  <div key={lf.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: isEditing ? '#eff6ff' : '#f9fafb',
+                    border: `1px solid ${isEditing ? '#bfdbfe' : '#e5e7eb'}`,
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13.5, color: '#111827' }}>
+                        {ficha?.codigo_ficha ?? lf.id_ficha}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        Cantidad asignada: <strong>{lf.cantidad}</strong>
+                      </div>
+                    </div>
+                    <IconButton title="Editar cantidad" onClick={() => handleFichaEditar(lf)}
+                      style={{ color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton title="Quitar ficha" onClick={() => handleFichaEliminar(lf.id)}
+                      disabled={fichaDeleting === lf.id}
+                      style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <TrashIcon />
+                    </IconButton>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              {fichaEditId ? 'Editar cantidad' : 'Asignar nueva ficha'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              {!fichaEditId && (
+                <FormField label="Ficha" style={{ flex: 2 }}>
+                  <AppSelect size="sm" value={fichaForm.id_ficha}
+                    onChange={e => setFichaForm(p => ({ ...p, id_ficha: e.target.value }))}>
+                    <option value="">— Seleccionar ficha —</option>
+                    {fichasDisponibles.map(f => (
+                      <option key={f.id_ficha} value={f.id_ficha}>{f.codigo_ficha}</option>
+                    ))}
+                  </AppSelect>
+                </FormField>
+              )}
+              <FormField label="Cantidad" style={{ flex: 1 }}>
+                <AppInput size="sm" type="number" min="1" value={fichaForm.cantidad}
+                  placeholder="Ej. 30"
+                  onChange={e => setFichaForm(p => ({ ...p, cantidad: e.target.value }))} />
+              </FormField>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 1 }}>
+                <AppButton size="compact" onClick={handleFichaGuardar} loading={fichaSaving}>
+                  {fichaEditId ? 'Actualizar' : 'Asignar'}
+                </AppButton>
+                {fichaEditId && (
+                  <AppButton variant="ghost" size="compact"
+                    onClick={() => { setFichaEditId(null); setFichaForm({ id_ficha: '', cantidad: '' }); setFichaError(null) }}>
+                    Cancelar
+                  </AppButton>
+                )}
+              </div>
+            </div>
+            {fichaError && <AlertBanner variant="error" style={{ marginTop: 8 }}>{fichaError}</AlertBanner>}
+          </div>
         </div>
       </AppModal>
 

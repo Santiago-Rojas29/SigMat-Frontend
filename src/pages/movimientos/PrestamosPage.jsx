@@ -163,7 +163,7 @@ export function PrestamosPage() {
     }
     const dUs = dev ? devolucionUnidades.filter(du => du.id_devolucion === dev.id) : []
 
-    const enrich = (id_mat) => materiales.find(m => m.id_material === id_mat)
+    const enrich = (id_mat) => materiales.find(m => m.id === id_mat)
 
     return {
       ...p,
@@ -213,11 +213,11 @@ export function PrestamosPage() {
     if (!s) return null
     const sUs = solicitudUnidades.filter(su => su.id_solicitud === s.id_solicitud).map(su => {
       const u = unidades.find(x => x.id_unidad === su.id_unidad)
-      return { ...su, _u: u, _m: materiales.find(m => m.id_material === u?.id_material) }
+      return { ...su, _u: u, _m: materiales.find(m => m.id === u?.id_material) }
     })
     const sLs = solicitudLotes.filter(sl => sl.id_solicitud === s.id_solicitud).map(sl => {
       const l = lotes.find(x => x.id_lote === sl.id_lote)
-      return { ...sl, _l: l, _m: materiales.find(m => m.id_material === l?.id_material) }
+      return { ...sl, _l: l, _m: materiales.find(m => m.id === l?.id_material) }
     })
     return { ...s, _sUs: sUs, _sLs: sLs }
   }, [crearForm.id_solicitud, solicitudesDisponibles, solicitudUnidades, solicitudLotes, unidades, lotes, materiales])
@@ -250,7 +250,6 @@ export function PrestamosPage() {
         fecha_limite:  new Date(crearForm.fecha_limite).toISOString(),
         estado:        'activo',
       })
-      await api.patch(`/solicitud/${crearForm.id_solicitud}`, { estado: 'activo' })
       setCrearOpen(false)
       load()
     } catch { setError('Error al crear el préstamo') }
@@ -298,10 +297,7 @@ export function PrestamosPage() {
           cantidad_devuelta: devLCant[el.id_lote] ?? 0,
         })),
       ])
-      await Promise.all([
-        api.patch(`/prestamo/${devPre.id}`, { estado: 'finalizado' }),
-        api.patch(`/solicitud/${devPre._sol.id_solicitud}`, { estado: 'finalizado' }),
-      ])
+      await api.patch(`/prestamo/${devPre.id}`, { estado: 'finalizado' })
       setDevOpen(false); load()
     } catch { setError('Error al registrar la devolución') }
     finally { setDevSaving(false) }

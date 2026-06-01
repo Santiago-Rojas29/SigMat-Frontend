@@ -1,37 +1,47 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageHeader } from '../../components/molecules/PageHeader'
-import { DataTable } from '../../components/organisms/DataTable'
-import { AppModal } from '../../components/organisms/AppModal'
-import { AppButton } from '../../components/atoms/AppButton'
-import { Badge } from '../../components/atoms/Badge'
+import { PageHeader }    from '../../components/molecules/PageHeader'
+import { DataTable }     from '../../components/organisms/DataTable'
+import { AppModal }      from '../../components/organisms/AppModal'
+import { AppButton }     from '../../components/atoms/AppButton'
+import { Badge }         from '../../components/atoms/Badge'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { AlertBanner } from '../../components/molecules/AlertBanner'
-import { useAuth } from '../../context/AuthContext'
+import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useAuth }       from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
-import api from '../../services/api'
+import api               from '../../services/api'
+
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const ESTADOS = {
-  pendiente:  { label: 'Pendiente',  variant: 'warning' },
-  aprobado:   { label: 'Aprobado',   variant: 'success' },
-  rechazado:  { label: 'Rechazado',  variant: 'danger'  },
-  activo:     { label: 'Activo',     variant: 'info'    },
-  finalizado: { label: 'Finalizado', variant: 'default' },
+  pendiente_instructor: { label: 'Pend. Instructor',    variant: 'warning' },
+  pendiente_admin:      { label: 'Pend. Administrador', variant: 'warning' },
+  pendiente_bodega:     { label: 'Pend. Bodega',        variant: 'info'    },
+  aprobado:             { label: 'Aprobado',             variant: 'success' },
+  entregado:            { label: 'Entregado',            variant: 'success' },
+  rechazado:            { label: 'Rechazado',            variant: 'danger'  },
+  cancelado:            { label: 'Cancelado',            variant: 'default' },
+}
+
+const FLUJOS = {
+  instructor: { label: 'Instructor',  variant: 'info'    },
+  aprendiz:   { label: 'Aprendiz',    variant: 'warning' },
 }
 
 const TIPOS = {
-  interno: { label: 'Interno', variant: 'info'    },
+  interno: { label: 'Interno', variant: 'default' },
   externo: { label: 'Externo', variant: 'warning' },
 }
 
-const FORM_INIT = { id_ficha: '', tipo_prestamo: 'interno', observaciones: '' }
+const PENDIENTES = ['pendiente_instructor', 'pendiente_admin', 'pendiente_bodega']
+const TERMINALES = ['entregado', 'rechazado', 'cancelado']
 
-const CARDS_DEF = [
+const FILTER_CARDS = [
   {
     key: null, label: 'Todas', color: '#111827', bg: '#fff', border: '#e5e7eb',
     paths: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
   },
   {
-    key: 'pendiente', label: 'Pendientes', color: '#d97706', bg: '#fffbeb', border: '#fde68a',
+    key: 'en_proceso', label: 'En proceso', color: '#d97706', bg: '#fffbeb', border: '#fde68a',
     paths: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
   },
   {
@@ -39,23 +49,37 @@ const CARDS_DEF = [
     paths: <><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
   },
   {
+    key: 'entregado', label: 'Entregadas', color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4',
+    paths: <><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></>,
+  },
+  {
     key: 'rechazado', label: 'Rechazadas', color: '#dc2626', bg: '#fef2f2', border: '#fecaca',
     paths: <><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></>,
   },
   {
-    key: 'activo', label: 'Activas', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe',
-    paths: <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>,
-  },
-  {
-    key: 'finalizado', label: 'Finalizadas', color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb',
-    paths: <><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></>,
+    key: 'cancelado', label: 'Canceladas', color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb',
+    paths: <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>,
   },
 ]
 
+const FORM_INIT = {
+  tipo_flujo: 'instructor',
+  tipo_prestamo: 'interno',
+  id_instructor: '',
+  id_bodega: '',
+  observaciones: '',
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function fmtFecha(val) {
   if (!val) return '—'
-  const d = new Date(val)
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(val).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fmtNombre(u) {
+  if (!u) return '—'
+  return `${u.nombres ?? ''} ${u.apellidos ?? ''}`.trim() || u.correo
 }
 
 function Row({ label, value }) {
@@ -67,50 +91,82 @@ function Row({ label, value }) {
   )
 }
 
+// ── Icons ────────────────────────────────────────────────────────────────────
+
+function Ic({ size = 15, children }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+}
+const EyeIcon    = () => <Ic><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></Ic>
+const CheckIcon  = () => <Ic><polyline points="20 6 9 17 4 12"/></Ic>
+const XIcon      = () => <Ic><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Ic>
+const BoxIcon    = () => <Ic><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></Ic>
+const BanIcon    = () => <Ic><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></Ic>
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+
+const labelStyle  = { display: 'block', fontSize: 12.5, fontWeight: 600, color: '#374151', marginBottom: 6 }
+const inputStyle  = { width: '100%', padding: '9px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 13.5, color: '#111827', outline: 'none', boxSizing: 'border-box' }
+const selectStyle = { ...inputStyle, background: '#fff', cursor: 'pointer' }
+const itemRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 7, gap: 8 }
+const removeBtn   = { background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: '0 2px', lineHeight: 1 }
+
+function btnStyle(color) {
+  return { background: 'none', border: 'none', cursor: 'pointer', color, padding: '4px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export function SolicitudesPage() {
-  const { user } = useAuth()
+  const { user }        = useAuth()
   const { hasPermission } = usePermissions()
-  const isAdmin = hasPermission('administracion')
+  const isAdmin         = hasPermission('administracion')
 
-  const [solicitudes, setSolicitudes]           = useState([])
-  const [solicitudLotes, setSolicitudLotes]     = useState([])
-  const [solicitudUnidades, setSolicitudUnidades] = useState([])
-  const [usuarios, setUsuarios]                 = useState([])
-  const [fichas, setFichas]                     = useState([])
-  const [lotes, setLotes]                       = useState([])
-  const [unidades, setUnidades]                 = useState([])
-  const [materiales, setMateriales]             = useState([])
-  const [loading, setLoading]                   = useState(true)
-  const [error, setError]                       = useState('')
+  // ── Data ──────────────────────────────────────────────────────────────────
 
-  const [filterKey, setFilterKey]   = useState(null)
-  const [modalOpen, setModalOpen]   = useState(false)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [detailSol, setDetailSol]   = useState(null)
-  const [step, setStep]             = useState(1)
-  const [form, setForm]             = useState(FORM_INIT)
-  const [saving, setSaving]         = useState(false)
+  const [solicitudes,      setSolicitudes]      = useState([])
+  const [solicitudLotes,   setSolicitudLotes]   = useState([])
+  const [solicitudUnidades,setSolicitudUnidades] = useState([])
+  const [usuarios,         setUsuarios]         = useState([])
+  const [roles,            setRoles]            = useState([])
+  const [lotes,            setLotes]            = useState([])
+  const [unidades,         setUnidades]         = useState([])
+  const [materiales,       setMateriales]       = useState([])
+  const [loading,          setLoading]          = useState(true)
+  const [error,            setError]            = useState('')
 
-  const [selUnidades, setSelUnidades] = useState([])
-  const [selLotes, setSelLotes]       = useState([])
-  const [addUnidadId, setAddUnidadId] = useState('')
-  const [addLoteId, setAddLoteId]     = useState('')
-  const [addLoteCant, setAddLoteCant] = useState(1)
+  // ── UI state ──────────────────────────────────────────────────────────────
 
-  const [confirmDel, setConfirmDel]     = useState({ open: false, id: '' })
-  const [confirmAprov, setConfirmAprov] = useState({ open: false, id: '' })
-  const [rejectModal, setRejectModal]   = useState({ open: false, id: '', obs: '' })
-  const [actioning, setActioning]       = useState(false)
+  const [filterKey,    setFilterKey]    = useState(null)
+  const [modalOpen,    setModalOpen]    = useState(false)
+  const [detailOpen,   setDetailOpen]   = useState(false)
+  const [detailSol,    setDetailSol]    = useState(null)
+  const [step,         setStep]         = useState(1)
+  const [form,         setForm]         = useState(FORM_INIT)
+  const [saving,       setSaving]       = useState(false)
+
+  const [selUnidades,  setSelUnidades]  = useState([])
+  const [selLotes,     setSelLotes]     = useState([])
+  const [addUnidadId,  setAddUnidadId]  = useState('')
+  const [addLoteId,    setAddLoteId]    = useState('')
+  const [addLoteCant,  setAddLoteCant]  = useState(1)
+
+  const [rejectModal,   setRejectModal]   = useState({ open: false, id: '', motivo: '' })
+  const [confirmModal,  setConfirmModal]  = useState({ open: false, id: '', type: '', body: null, title: '', desc: '', variant: 'primary' })
+  const [entregarModal, setEntregarModal] = useState({ open: false, id: '' })
+  const [entregarForm,  setEntregarForm]  = useState({ fecha_limite: '', observaciones: '' })
+  const [actioning,     setActioning]     = useState(false)
+
+  // ── Load ──────────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [s, sl, su, u, f, l, un, m] = await Promise.all([
+      const [s, sl, su, u, r, l, un, m] = await Promise.all([
         api.get('/solicitud'),
         api.get('/solicitud-lote'),
         api.get('/solicitud-unidad'),
         api.get('/usuario'),
-        api.get('/ficha'),
+        api.get('/rol'),
         api.get('/lote'),
         api.get('/unidad'),
         api.get('/material'),
@@ -119,7 +175,7 @@ export function SolicitudesPage() {
       setSolicitudLotes(sl.data)
       setSolicitudUnidades(su.data)
       setUsuarios(u.data)
-      setFichas(f.data)
+      setRoles(r.data)
       setLotes(l.data)
       setUnidades(un.data)
       setMateriales(m.data)
@@ -132,45 +188,131 @@ export function SolicitudesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const solicitudesRicas = useMemo(() => {
-    return solicitudes.map(s => {
-      const itemsLote   = solicitudLotes.filter(sl => sl.id_solicitud === s.id_solicitud)
-      const itemsUnidad = solicitudUnidades.filter(su => su.id_solicitud === s.id_solicitud)
-      return {
-        ...s,
-        _solicitante: usuarios.find(u => u.id === s.id_solicitante),
-        _ficha:       fichas.find(f => f.id_ficha === s.id_ficha),
-        _lotes:       itemsLote.map(sl => ({ ...sl, _lote: lotes.find(l => l.id_lote === sl.id_lote), _material: materiales.find(m => m.id_material === lotes.find(l => l.id_lote === sl.id_lote)?.id_material) })),
-        _unidades:    itemsUnidad.map(su => ({ ...su, _unidad: unidades.find(u => u.id_unidad === su.id_unidad), _material: materiales.find(m => m.id_material === unidades.find(u => u.id_unidad === su.id_unidad)?.id_material) })),
-        _numItems:    itemsLote.length + itemsUnidad.length,
-      }
-    })
-  }, [solicitudes, solicitudLotes, solicitudUnidades, usuarios, fichas, lotes, unidades, materiales])
+  // ── Derived ───────────────────────────────────────────────────────────────
+
+  const myRoleName = useMemo(() => {
+    if (!user) return null
+    return roles.find(r => r.id === user.id_rol)?.nombre ?? null
+  }, [roles, user])
+
+  const isInstructorBodega = myRoleName === 'InstructorBodega'
+
+  const instructores = useMemo(() => {
+    const rolInstructor = roles.find(r => r.nombre === 'Instructor')
+    if (!rolInstructor) return []
+    return usuarios.filter(u => u.id_rol === rolInstructor.id)
+  }, [usuarios, roles])
+
+  const instructoresBodega = useMemo(() => {
+    const rolBodega = roles.find(r => r.nombre === 'InstructorBodega')
+    if (!rolBodega) return []
+    return usuarios.filter(u => u.id_rol === rolBodega.id)
+  }, [usuarios, roles])
+
+  const solicitudesRicas = useMemo(() => solicitudes.map(s => ({
+    ...s,
+    _solicitante: usuarios.find(u => u.id === s.id_solicitante),
+    _instructor:  usuarios.find(u => u.id === s.id_instructor),
+    _admin:       usuarios.find(u => u.id === s.id_admin),
+    _bodega:      usuarios.find(u => u.id === s.id_bodega),
+    _lotes:       solicitudLotes
+      .filter(sl => sl.id_solicitud === s.id_solicitud)
+      .map(sl => ({ ...sl, _lote: lotes.find(l => l.id_lote === sl.id_lote), _material: materiales.find(m => m.id_material === lotes.find(l => l.id_lote === sl.id_lote)?.id_material) })),
+    _unidades:    solicitudUnidades
+      .filter(su => su.id_solicitud === s.id_solicitud)
+      .map(su => ({ ...su, _unidad: unidades.find(u => u.id_unidad === su.id_unidad), _material: materiales.find(m => m.id_material === unidades.find(u => u.id_unidad === su.id_unidad)?.id_material) })),
+  })), [solicitudes, solicitudLotes, solicitudUnidades, usuarios, lotes, unidades, materiales])
 
   const counts = useMemo(() => {
-    const c = { total: solicitudesRicas.length }
-    CARDS_DEF.forEach(card => {
-      if (card.key) c[card.key] = solicitudesRicas.filter(s => s.estado === card.key).length
+    const base = { total: solicitudesRicas.length, en_proceso: 0 }
+    solicitudesRicas.forEach(s => {
+      if (PENDIENTES.includes(s.estado)) base.en_proceso = (base.en_proceso ?? 0) + 1
+      else base[s.estado] = (base[s.estado] ?? 0) + 1
     })
-    return c
+    return base
   }, [solicitudesRicas])
 
   const datosFiltrados = useMemo(() => {
     if (!filterKey) return solicitudesRicas
+    if (filterKey === 'en_proceso') return solicitudesRicas.filter(s => PENDIENTES.includes(s.estado))
     return solicitudesRicas.filter(s => s.estado === filterKey)
   }, [solicitudesRicas, filterKey])
 
   const unidadesDisponibles = useMemo(() =>
-    unidades
-      .filter(u => u.estado === 'disponible')
-      .map(u => ({ ...u, _material: materiales.find(m => m.id_material === u.id_material) }))
+    unidades.filter(u => u.estado === 'disponible').map(u => ({ ...u, _material: materiales.find(m => m.id_material === u.id_material) }))
   , [unidades, materiales])
 
   const lotesConStock = useMemo(() =>
-    lotes
-      .filter(l => l.cantidad_disponible > 0)
-      .map(l => ({ ...l, _material: materiales.find(m => m.id_material === l.id_material) }))
+    lotes.filter(l => l.cantidad_disponible > 0).map(l => ({ ...l, _material: materiales.find(m => m.id_material === l.id_material) }))
   , [lotes, materiales])
+
+  // ── Per-row permissions ───────────────────────────────────────────────────
+
+  function getPerms(sol) {
+    const isMine  = sol.id_solicitante === user?.id
+    const nonTerm = !TERMINALES.includes(sol.estado)
+    const canAprovBodega = isInstructorBodega && sol.estado === 'pendiente_bodega' &&
+                           (sol.id_bodega === null || sol.id_bodega === user?.id)
+
+    return {
+      canCancel:             isMine && nonTerm && sol.estado !== 'aprobado',
+      canAprobarInstructor:  sol.id_instructor === user?.id && sol.estado === 'pendiente_instructor',
+      canAprobarAdmin:       isAdmin && sol.estado === 'pendiente_admin',
+      canAprobarBodega:      canAprovBodega,
+      canEntregar:           sol.id_bodega === user?.id && sol.estado === 'aprobado',
+      canRechazar:
+        (sol.id_instructor === user?.id && sol.estado === 'pendiente_instructor') ||
+        (isAdmin && sol.estado === 'pendiente_admin') ||
+        canAprovBodega,
+    }
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  const doAction = async (url, body) => {
+    setActioning(true)
+    try {
+      if (body) await api.patch(url, body)
+      else      await api.patch(url)
+      setConfirmModal(p => ({ ...p, open: false }))
+      setRejectModal({ open: false, id: '', motivo: '' })
+      load()
+    } catch (err) {
+      const msg = err?.response?.data?.message
+      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al procesar la acción'))
+    } finally { setActioning(false) }
+  }
+
+  const openConfirm = (id, type, title, desc, body = null, variant = 'primary') =>
+    setConfirmModal({ open: true, id, type, title, desc, body, variant })
+
+  const handleConfirm = () => doAction(
+    `/solicitud/${confirmModal.id}/${confirmModal.type}`,
+    confirmModal.body,
+  )
+
+  const handleRechazar = () =>
+    doAction(`/solicitud/${rejectModal.id}/rechazar`, { motivo_rechazo: rejectModal.motivo })
+
+  const handleEntregar = async () => {
+    if (!entregarForm.fecha_limite) { setError('Debes seleccionar una fecha límite de devolución'); return }
+    setActioning(true)
+    try {
+      await api.patch(`/solicitud/${entregarModal.id}/entregar`, {
+        id_bodega:    user.id,
+        fecha_limite: entregarForm.fecha_limite,
+        observaciones: entregarForm.observaciones || undefined,
+      })
+      setEntregarModal({ open: false, id: '' })
+      setEntregarForm({ fecha_limite: '', observaciones: '' })
+      load()
+    } catch (err) {
+      const msg = err?.response?.data?.message
+      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al registrar la entrega'))
+    } finally { setActioning(false) }
+  }
+
+  // ── Create ────────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setForm(FORM_INIT)
@@ -185,7 +327,12 @@ export function SolicitudesPage() {
 
   const closeModal = () => { setModalOpen(false); setStep(1) }
 
-  const openDetail = (sol) => { setDetailSol(sol); setDetailOpen(true) }
+  const step1Valid = () => {
+    if (!form.tipo_flujo || !form.tipo_prestamo) return false
+    if (form.tipo_flujo === 'aprendiz' && !form.id_instructor)  return false
+    if (form.tipo_flujo === 'instructor' && !form.id_bodega)    return false
+    return true
+  }
 
   const addUnidad = () => {
     const u = unidadesDisponibles.find(u => u.id_unidad === addUnidadId)
@@ -204,75 +351,56 @@ export function SolicitudesPage() {
   }
 
   const handleSave = async () => {
-    if (selUnidades.length === 0 && selLotes.length === 0) return
     setSaving(true)
     try {
-      const { data: sol } = await api.post('/solicitud', {
-        id_ficha:        form.id_ficha,
-        id_solicitante:  user.id,
-        fecha_solicitud: new Date().toISOString(),
-        tipo_prestamo:   form.tipo_prestamo,
-        estado:          'pendiente',
-        observaciones:   form.observaciones,
-      })
+      const payload = {
+        id_solicitante: user.id,
+        tipo_flujo:     form.tipo_flujo,
+        tipo_prestamo:  form.tipo_prestamo,
+        observaciones:  form.observaciones || undefined,
+      }
+      if (form.tipo_flujo === 'aprendiz')    payload.id_instructor = form.id_instructor
+      if (form.tipo_flujo === 'instructor')  payload.id_bodega     = form.id_bodega
+
+      const { data: sol } = await api.post('/solicitud', payload)
+
       await Promise.all([
         ...selUnidades.map(u => api.post('/solicitud-unidad', { id_solicitud: sol.id_solicitud, id_unidad: u.id_unidad, id_usuario: user.id })),
-        ...selLotes.map(l => api.post('/solicitud-lote', { id_solicitud: sol.id_solicitud, id_lote: l.id_lote, cantidad_solicitada: l._cantidad, id_usuario: user.id })),
+        ...selLotes.map(l => api.post('/solicitud-lote',    { id_solicitud: sol.id_solicitud, id_lote: l.id_lote, cantidad_solicitada: l._cantidad, id_usuario: user.id })),
       ])
       closeModal()
       load()
-    } catch {
-      setError('Error al guardar la solicitud')
+    } catch (err) {
+      const msg = err?.response?.data?.message
+      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al crear la solicitud'))
     } finally {
       setSaving(false)
     }
   }
 
-  const handleAprobar = async () => {
-    setActioning(true)
-    try {
-      await api.patch(`/solicitud/${confirmAprov.id}`, { estado: 'aprobado' })
-      setConfirmAprov({ open: false, id: '' })
-      load()
-    } catch { setError('Error al aprobar') } finally { setActioning(false) }
-  }
-
-  const handleRechazar = async () => {
-    setActioning(true)
-    try {
-      await api.patch(`/solicitud/${rejectModal.id}`, { estado: 'rechazado', observaciones: rejectModal.obs })
-      setRejectModal({ open: false, id: '', obs: '' })
-      load()
-    } catch { setError('Error al rechazar') } finally { setActioning(false) }
-  }
-
-  const handleEliminar = async () => {
-    setActioning(true)
-    try {
-      await api.delete(`/solicitud/${confirmDel.id}`)
-      setConfirmDel({ open: false, id: '' })
-      load()
-    } catch { setError('Error al eliminar') } finally { setActioning(false) }
-  }
+  // ── Table columns ─────────────────────────────────────────────────────────
 
   const columns = [
     {
-      key: 'id_solicitud', header: 'ID', width: 100,
-      copyable: true, truncateAt: 8, searchable: false,
-    },
-    {
-      key: 'fecha_solicitud', header: 'Fecha',
+      key: 'fecha_solicitud', header: 'Fecha', width: 110,
       render: r => fmtFecha(r.fecha_solicitud),
     },
     {
-      key: 'tipo_prestamo', header: 'Tipo', width: 110,
+      key: 'tipo_flujo', header: 'Flujo', width: 105,
+      render: r => {
+        const f = FLUJOS[r.tipo_flujo] ?? { label: r.tipo_flujo, variant: 'default' }
+        return <Badge variant={f.variant}>{f.label}</Badge>
+      },
+    },
+    {
+      key: 'tipo_prestamo', header: 'Tipo', width: 90,
       render: r => {
         const t = TIPOS[r.tipo_prestamo] ?? { label: r.tipo_prestamo, variant: 'default' }
         return <Badge variant={t.variant}>{t.label}</Badge>
       },
     },
     {
-      key: 'estado', header: 'Estado', width: 120,
+      key: 'estado', header: 'Estado', width: 160,
       render: r => {
         const e = ESTADOS[r.estado] ?? { label: r.estado, variant: 'default' }
         return <Badge variant={e.variant}>{e.label}</Badge>
@@ -280,53 +408,72 @@ export function SolicitudesPage() {
     },
     {
       key: '_solicitante', header: 'Solicitante',
-      render: r => r._solicitante ? `${r._solicitante.nombres} ${r._solicitante.apellidos}` : r.id_solicitante,
+      render: r => fmtNombre(r._solicitante),
     },
     {
-      key: '_ficha', header: 'Ficha', width: 120,
-      render: r => r._ficha?.codigo_ficha ?? r.id_ficha,
+      key: '_destino', header: 'Dirigido a',
+      render: r => {
+        if (r.tipo_flujo === 'aprendiz' && r._instructor)  return fmtNombre(r._instructor)
+        if (r.tipo_flujo === 'instructor' && r._bodega)    return fmtNombre(r._bodega)
+        return '—'
+      },
     },
     {
-      key: '_numItems', header: 'Ítems', width: 70, align: 'center',
-      render: r => (
-        <span style={{ fontWeight: 600, fontSize: 13, color: r._numItems > 0 ? '#2d8000' : '#9ca3af' }}>
-          {r._numItems}
-        </span>
-      ),
-    },
-    {
-      key: '_acciones', header: 'Acciones', width: 140, searchable: false,
-      render: r => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button title="Ver detalle" onClick={() => openDetail(r)} style={btnStyle('#2563eb')}>
-            <EyeIcon />
-          </button>
-          {r.estado === 'pendiente' && <>
-            <button title="Aprobar" onClick={() => setConfirmAprov({ open: true, id: r.id_solicitud })} style={btnStyle('#2d8000')}>
-              <CheckIcon />
+      key: '_acciones', header: 'Acciones', width: 180, searchable: false,
+      render: r => {
+        const p = getPerms(r)
+        return (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button title="Ver detalle" onClick={() => { setDetailSol(r); setDetailOpen(true) }} style={btnStyle('#2563eb')}>
+              <EyeIcon />
             </button>
-            <button title="Rechazar" onClick={() => setRejectModal({ open: true, id: r.id_solicitud, obs: r.observaciones ?? '' })} style={btnStyle('#d97706')}>
-              <XIcon />
-            </button>
-            {isAdmin && (
-              <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id_solicitud })} style={btnStyle('#dc2626')}>
-                <TrashIcon />
+            {p.canAprobarInstructor && (
+              <button title="Aprobar como Instructor" onClick={() => openConfirm(r.id_solicitud, 'aprobar-instructor', 'Aprobar como Instructor', '¿Confirmas que apruebas esta solicitud y la envías a bodega?')} style={btnStyle('#2d8000')}>
+                <CheckIcon />
               </button>
             )}
-          </>}
-        </div>
-      ),
+            {p.canAprobarAdmin && (
+              <button title="Aprobar como Administrador" onClick={() => openConfirm(r.id_solicitud, 'aprobar-admin', 'Aprobar como Administrador', '¿Confirmas que apruebas esta solicitud y la envías a bodega?', { id_admin: user.id })} style={btnStyle('#2d8000')}>
+                <CheckIcon />
+              </button>
+            )}
+            {p.canAprobarBodega && (
+              <button title="Aprobar y registrar como Bodega" onClick={() => openConfirm(r.id_solicitud, 'aprobar-bodega', 'Aprobar — Bodega', '¿Confirmas la disponibilidad del material y apruebas la solicitud?', { id_bodega: user.id })} style={btnStyle('#2d8000')}>
+                <CheckIcon />
+              </button>
+            )}
+            {p.canEntregar && (
+              <button title="Registrar entrega y crear préstamo" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
+                <BoxIcon />
+              </button>
+            )}
+            {p.canRechazar && (
+              <button title="Rechazar" onClick={() => setRejectModal({ open: true, id: r.id_solicitud, motivo: '' })} style={btnStyle('#d97706')}>
+                <XIcon />
+              </button>
+            )}
+            {p.canCancel && (
+              <button title="Cancelar mi solicitud" onClick={() => openConfirm(r.id_solicitud, 'cancelar', 'Cancelar solicitud', '¿Seguro que deseas cancelar esta solicitud? Esta acción no se puede deshacer.', null, 'danger')} style={btnStyle('#6b7280')}>
+                <BanIcon />
+              </button>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div>
-      <PageHeader title="Solicitudes" description="Gestión de solicitudes de materiales" />
+      <PageHeader title="Solicitudes" description="Gestión de solicitudes de préstamo de materiales" />
 
       {error && <AlertBanner type="error" message={error} onClose={() => setError('')} style={{ marginBottom: 20 }} />}
 
+      {/* Filter cards */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
-        {CARDS_DEF.map(card => {
+        {FILTER_CARDS.map(card => {
           const count = card.key ? counts[card.key] ?? 0 : counts.total
           const isActive = filterKey === card.key
           return (
@@ -334,7 +481,7 @@ export function SolicitudesPage() {
               key={String(card.key)}
               onClick={() => setFilterKey(isActive ? null : card.key)}
               style={{
-                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                flex: '1 1 100px', minWidth: 100, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                 gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
                 border: `1.5px solid ${isActive ? card.color : card.border}`,
                 background: isActive ? card.color : card.bg,
@@ -342,8 +489,7 @@ export function SolicitudesPage() {
               }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                stroke={isActive ? '#fff' : card.color} strokeWidth="1.8"
-                strokeLinecap="round" strokeLinejoin="round">
+                stroke={isActive ? '#fff' : card.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 {card.paths}
               </svg>
               <div>
@@ -360,12 +506,11 @@ export function SolicitudesPage() {
         data={datosFiltrados}
         rowKey="id_solicitud"
         loading={loading}
-        actions={
-          <AppButton size="compact" onClick={openCreate}>+ Nueva solicitud</AppButton>
-        }
+        actions={<AppButton size="compact" onClick={openCreate}>+ Nueva solicitud</AppButton>}
         emptyMessage="No hay solicitudes registradas"
       />
 
+      {/* ── Create modal ─────────────────────────────────────────────────── */}
       <AppModal
         isOpen={modalOpen}
         onClose={closeModal}
@@ -375,9 +520,7 @@ export function SolicitudesPage() {
           step === 1
             ? <>
                 <AppButton variant="ghost" size="compact" onClick={closeModal}>Cancelar</AppButton>
-                <AppButton size="compact"
-                  onClick={() => setStep(2)}
-                  disabled={!form.id_ficha || !form.tipo_prestamo}>
+                <AppButton size="compact" onClick={() => setStep(2)} disabled={!step1Valid()}>
                   Siguiente →
                 </AppButton>
               </>
@@ -392,49 +535,107 @@ export function SolicitudesPage() {
       >
         {step === 1 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {/* Tipo de flujo */}
             <div>
-              <label style={labelStyle}>Ficha *</label>
-              <select value={form.id_ficha} onChange={e => setForm(p => ({ ...p, id_ficha: e.target.value }))} style={selectStyle}>
-                <option value="">Seleccionar ficha...</option>
-                {fichas.map(f => (
-                  <option key={f.id_ficha} value={f.id_ficha}>{f.codigo_ficha}</option>
+              <label style={labelStyle}>Tipo de flujo *</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[{ val: 'instructor', label: 'Instructor → Bodega', desc: 'Yo soy instructor solicitando materiales' },
+                  { val: 'aprendiz',   label: 'Aprendiz → Instructor', desc: 'Yo soy aprendiz solicitando a mi instructor' }].map(opt => (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, tipo_flujo: opt.val, id_instructor: '', id_bodega: '' }))}
+                    style={{
+                      flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                      border: `2px solid ${form.tipo_flujo === opt.val ? '#39A900' : '#e5e7eb'}`,
+                      background: form.tipo_flujo === opt.val ? '#f0fdf4' : '#fff',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: form.tipo_flujo === opt.val ? '#2d8000' : '#374151', marginBottom: 3 }}>{opt.label}</div>
+                    <div style={{ fontSize: 11.5, color: '#6b7280' }}>{opt.desc}</div>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
+
+            {/* Tipo de préstamo */}
             <div>
               <label style={labelStyle}>Tipo de préstamo *</label>
               <select value={form.tipo_prestamo} onChange={e => setForm(p => ({ ...p, tipo_prestamo: e.target.value }))} style={selectStyle}>
-                <option value="interno">Interno</option>
-                <option value="externo">Externo</option>
+                <option value="interno">Interno — InstructorBodega aprueba directamente</option>
+                <option value="externo">Externo — pasa por Administrador primero</option>
               </select>
             </div>
+
+            {/* Conditional user selector */}
+            {form.tipo_flujo === 'aprendiz' && (
+              <div>
+                <label style={labelStyle}>Instructor de mi grupo *</label>
+                <select value={form.id_instructor} onChange={e => setForm(p => ({ ...p, id_instructor: e.target.value }))} style={selectStyle}>
+                  <option value="">Seleccionar instructor...</option>
+                  {instructores.map(u => (
+                    <option key={u.id} value={u.id}>{fmtNombre(u)}</option>
+                  ))}
+                </select>
+                {instructores.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay instructores disponibles en el sistema.</p>
+                )}
+              </div>
+            )}
+
+            {form.tipo_flujo === 'instructor' && (
+              <div>
+                <label style={labelStyle}>Instructor responsable de Bodega *</label>
+                <select value={form.id_bodega} onChange={e => setForm(p => ({ ...p, id_bodega: e.target.value }))} style={selectStyle}>
+                  <option value="">Seleccionar InstructorBodega...</option>
+                  {instructoresBodega.map(u => (
+                    <option key={u.id} value={u.id}>{fmtNombre(u)}</option>
+                  ))}
+                </select>
+                {instructoresBodega.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay InstructoresBodega registrados. Pide al administrador que cree uno.</p>
+                )}
+              </div>
+            )}
+
+            {/* Solicitante (read-only) */}
             <div>
               <label style={labelStyle}>Solicitante</label>
-              <input value={user ? `${user.nombres ?? ''} ${user.apellidos ?? ''}`.trim() || user.correo : ''} disabled style={{ ...inputStyle, background: '#f9fafb', color: '#6b7280' }} />
+              <input
+                value={user ? `${user.nombres ?? ''} ${user.apellidos ?? ''}`.trim() || user.correo : ''}
+                disabled
+                style={{ ...inputStyle, background: '#f9fafb', color: '#6b7280' }}
+              />
             </div>
+
+            {/* Observaciones */}
             <div>
-              <label style={labelStyle}>Observaciones</label>
-              <textarea value={form.observaciones} onChange={e => setForm(p => ({ ...p, observaciones: e.target.value }))}
-                rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                placeholder="Motivo o detalles de la solicitud..." />
+              <label style={labelStyle}>Observaciones (opcional)</label>
+              <textarea
+                value={form.observaciones}
+                onChange={e => setForm(p => ({ ...p, observaciones: e.target.value }))}
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                placeholder="Motivo o detalles de la solicitud..."
+              />
             </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Unidades */}
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 12 }}>
-                Activos (Unidades no consumibles)
+                Activos — Unidades (no consumibles)
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <select value={addUnidadId} onChange={e => setAddUnidadId(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
                   <option value="">Seleccionar unidad disponible...</option>
-                  {unidadesDisponibles
-                    .filter(u => !selUnidades.find(s => s.id_unidad === u.id_unidad))
-                    .map(u => (
-                      <option key={u.id_unidad} value={u.id_unidad}>
-                        {u.codigo_unidad} — {u._material?.nombre ?? u.id_material}
-                      </option>
-                    ))}
+                  {unidadesDisponibles.filter(u => !selUnidades.find(s => s.id_unidad === u.id_unidad)).map(u => (
+                    <option key={u.id_unidad} value={u.id_unidad}>
+                      {u.codigo_unidad} — {u._material?.nombre ?? u.id_material}
+                    </option>
+                  ))}
                 </select>
                 <AppButton size="compact" onClick={addUnidad} disabled={!addUnidadId}>Agregar</AppButton>
               </div>
@@ -452,21 +653,20 @@ export function SolicitudesPage() {
               }
             </div>
 
+            {/* Lotes */}
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 12 }}>
-                Consumibles / Perecederos (Lotes)
+                Consumibles / Perecederos — Lotes
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
                 <div style={{ flex: 1 }}>
                   <select value={addLoteId} onChange={e => { setAddLoteId(e.target.value); setAddLoteCant(1) }} style={selectStyle}>
-                    <option value="">Seleccionar lote...</option>
-                    {lotesConStock
-                      .filter(l => !selLotes.find(s => s.id_lote === l.id_lote))
-                      .map(l => (
-                        <option key={l.id_lote} value={l.id_lote}>
-                          {l.codigo_lote} — {l._material?.nombre ?? l.id_material} (disp: {l.cantidad_disponible})
-                        </option>
-                      ))}
+                    <option value="">Seleccionar lote con stock...</option>
+                    {lotesConStock.filter(l => !selLotes.find(s => s.id_lote === l.id_lote)).map(l => (
+                      <option key={l.id_lote} value={l.id_lote}>
+                        {l.codigo_lote} — {l._material?.nombre ?? l.id_material} (disp: {l.cantidad_disponible})
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <input
@@ -497,29 +697,76 @@ export function SolicitudesPage() {
 
             {selUnidades.length === 0 && selLotes.length === 0 && (
               <p style={{ fontSize: 12.5, color: '#f59e0b', margin: 0, textAlign: 'center' }}>
-                Debes agregar al menos un ítem para continuar.
+                Agrega al menos un ítem para continuar.
               </p>
             )}
           </div>
         )}
       </AppModal>
 
-      <AppModal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="Detalle de solicitud" maxWidth={620}
-        footer={<AppButton variant="ghost" size="compact" onClick={() => setDetailOpen(false)}>Cerrar</AppButton>}>
+      {/* ── Detail modal ─────────────────────────────────────────────────── */}
+      <AppModal
+        isOpen={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title="Detalle de solicitud"
+        maxWidth={640}
+        footer={<AppButton variant="ghost" size="compact" onClick={() => setDetailOpen(false)}>Cerrar</AppButton>}
+      >
         {detailSol && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Row label="Fecha" value={fmtFecha(detailSol.fecha_solicitud)} />
-              <Row label="Tipo" value={<Badge variant={TIPOS[detailSol.tipo_prestamo]?.variant ?? 'default'}>{TIPOS[detailSol.tipo_prestamo]?.label ?? detailSol.tipo_prestamo}</Badge>} />
-              <Row label="Estado" value={<Badge variant={ESTADOS[detailSol.estado]?.variant ?? 'default'}>{ESTADOS[detailSol.estado]?.label ?? detailSol.estado}</Badge>} />
-              <Row label="Ficha" value={detailSol._ficha?.codigo_ficha ?? detailSol.id_ficha} />
-              <Row label="Solicitante" value={detailSol._solicitante ? `${detailSol._solicitante.nombres} ${detailSol._solicitante.apellidos}` : detailSol.id_solicitante} />
-              {detailSol.observaciones && <Row label="Observaciones" value={detailSol.observaciones} />}
+            {/* Header info */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <Row label="Fecha solicitud"  value={fmtFecha(detailSol.fecha_solicitud)} />
+              <Row label="Estado"           value={<Badge variant={ESTADOS[detailSol.estado]?.variant ?? 'default'}>{ESTADOS[detailSol.estado]?.label ?? detailSol.estado}</Badge>} />
+              <Row label="Flujo"            value={<Badge variant={FLUJOS[detailSol.tipo_flujo]?.variant ?? 'default'}>{FLUJOS[detailSol.tipo_flujo]?.label ?? detailSol.tipo_flujo}</Badge>} />
+              <Row label="Tipo préstamo"    value={<Badge variant={TIPOS[detailSol.tipo_prestamo]?.variant ?? 'default'}>{TIPOS[detailSol.tipo_prestamo]?.label ?? detailSol.tipo_prestamo}</Badge>} />
+              <Row label="Solicitante"      value={fmtNombre(detailSol._solicitante)} />
+              {detailSol.tipo_flujo === 'aprendiz' && (
+                <Row label="Instructor asignado" value={fmtNombre(detailSol._instructor)} />
+              )}
+              {detailSol.id_admin   && <Row label="Administrador"          value={fmtNombre(detailSol._admin)} />}
+              {detailSol.id_bodega  && <Row label="Instructor Bodega"       value={fmtNombre(detailSol._bodega)} />}
+              {detailSol.observaciones  && <Row label="Observaciones"  value={detailSol.observaciones} />}
+              {detailSol.motivo_rechazo && <Row label="Motivo rechazo" value={detailSol.motivo_rechazo} />}
             </div>
 
+            {/* Timeline */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
+                Progreso
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {[
+                  { label: 'Solicitud creada',        date: detailSol.fecha_solicitud,            done: true },
+                  { label: 'Revisión del instructor',  date: detailSol.fecha_respuesta_instructor, done: !!detailSol.fecha_respuesta_instructor, skip: detailSol.tipo_flujo !== 'aprendiz' },
+                  { label: 'Revisión del administrador', date: detailSol.fecha_respuesta_admin,   done: !!detailSol.fecha_respuesta_admin, skip: detailSol.tipo_prestamo !== 'externo' },
+                  { label: 'Aprobación bodega',        date: detailSol.fecha_respuesta_bodega,    done: !!detailSol.fecha_respuesta_bodega },
+                  { label: 'Material entregado',       date: detailSol.fecha_entrega,             done: !!detailSol.fecha_entrega },
+                ].filter(step => !step.skip).map((step, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, paddingBottom: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%', border: '2px solid',
+                        borderColor: step.done ? '#2d8000' : '#d1d5db',
+                        background: step.done ? '#2d8000' : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {step.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </div>
+                    </div>
+                    <div style={{ paddingTop: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: step.done ? '#111827' : '#9ca3af' }}>{step.label}</div>
+                      {step.date && <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 2 }}>{fmtFecha(step.date)}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Items */}
             {detailSol._unidades?.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
                   Unidades solicitadas
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -536,10 +783,9 @@ export function SolicitudesPage() {
                 </div>
               </div>
             )}
-
             {detailSol._lotes?.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
                   Lotes solicitados
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -557,83 +803,95 @@ export function SolicitudesPage() {
                 </div>
               </div>
             )}
-
-            {detailSol._numItems === 0 && (
+            {(!detailSol._unidades?.length && !detailSol._lotes?.length) && (
               <p style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center' }}>Sin ítems registrados.</p>
             )}
           </div>
         )}
       </AppModal>
 
-      <AppModal isOpen={rejectModal.open} onClose={() => setRejectModal({ open: false, id: '', obs: '' })}
-        title="Rechazar solicitud" maxWidth={420}
+      {/* ── Entregar modal ───────────────────────────────────────────────── */}
+      <AppModal
+        isOpen={entregarModal.open}
+        onClose={() => setEntregarModal({ open: false, id: '' })}
+        title="Registrar entrega"
+        maxWidth={440}
         footer={<>
-          <AppButton variant="ghost" size="compact" onClick={() => setRejectModal({ open: false, id: '', obs: '' })} disabled={actioning}>Cancelar</AppButton>
-          <AppButton variant="danger" size="compact" onClick={handleRechazar} loading={actioning}>Rechazar</AppButton>
-        </>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13.5, color: '#374151', margin: 0 }}>
-            ¿Seguro que deseas rechazar esta solicitud? Puedes dejar un motivo a continuación.
-          </p>
+          <AppButton variant="ghost" size="compact" onClick={() => setEntregarModal({ open: false, id: '' })} disabled={actioning}>Cancelar</AppButton>
+          <AppButton variant="primary" size="compact" onClick={handleEntregar} loading={actioning}>Confirmar entrega y crear préstamo</AppButton>
+        </>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+            Al confirmar se registrará la entrega del material y se creará automáticamente el préstamo en el sistema.
+          </div>
           <div>
-            <label style={labelStyle}>Motivo (opcional)</label>
-            <textarea rows={3} value={rejectModal.obs}
-              onChange={e => setRejectModal(p => ({ ...p, obs: e.target.value }))}
+            <label style={labelStyle}>
+              Fecha límite de devolución <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+            <input
+              type="date"
+              value={entregarForm.fecha_limite}
+              min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+              onChange={e => setEntregarForm(p => ({ ...p, fecha_limite: e.target.value }))}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 11.5, color: '#6b7280', marginTop: 4, display: 'block' }}>
+              Fecha en que el solicitante debe devolver el material
+            </span>
+          </div>
+          <div>
+            <label style={labelStyle}>Observaciones (opcional)</label>
+            <textarea
+              rows={3}
+              value={entregarForm.observaciones}
+              onChange={e => setEntregarForm(p => ({ ...p, observaciones: e.target.value }))}
               style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-              placeholder="Razón del rechazo..." />
+              placeholder="Notas adicionales sobre la entrega..."
+            />
           </div>
         </div>
       </AppModal>
 
-      <ConfirmDialog
-        isOpen={confirmAprov.open}
-        title="Aprobar solicitud"
-        description="¿Confirmas que deseas aprobar esta solicitud?"
-        confirmLabel="Aprobar"
-        variant="warning"
-        loading={actioning}
-        onConfirm={handleAprobar}
-        onCancel={() => setConfirmAprov({ open: false, id: '' })}
-      />
+      {/* ── Reject modal ─────────────────────────────────────────────────── */}
+      <AppModal
+        isOpen={rejectModal.open}
+        onClose={() => setRejectModal({ open: false, id: '', motivo: '' })}
+        title="Rechazar solicitud"
+        maxWidth={420}
+        footer={<>
+          <AppButton variant="ghost" size="compact" onClick={() => setRejectModal({ open: false, id: '', motivo: '' })} disabled={actioning}>Cancelar</AppButton>
+          <AppButton variant="danger" size="compact" onClick={handleRechazar} loading={actioning}>Rechazar</AppButton>
+        </>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 13.5, color: '#374151', margin: 0 }}>
+            ¿Seguro que deseas rechazar esta solicitud?
+          </p>
+          <div>
+            <label style={labelStyle}>Motivo del rechazo (opcional)</label>
+            <textarea
+              rows={3}
+              value={rejectModal.motivo}
+              onChange={e => setRejectModal(p => ({ ...p, motivo: e.target.value }))}
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+              placeholder="Razón del rechazo..."
+            />
+          </div>
+        </div>
+      </AppModal>
 
+      {/* ── Generic confirm dialog ────────────────────────────────────────── */}
       <ConfirmDialog
-        isOpen={confirmDel.open}
-        title="Eliminar solicitud"
-        description="Esta acción no se puede deshacer. ¿Deseas eliminar la solicitud?"
-        confirmLabel="Eliminar"
-        variant="danger"
+        isOpen={confirmModal.open}
+        title={confirmModal.title}
+        description={confirmModal.desc}
+        confirmLabel="Confirmar"
+        variant={confirmModal.variant}
         loading={actioning}
-        onConfirm={handleEliminar}
-        onCancel={() => setConfirmDel({ open: false, id: '' })}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmModal(p => ({ ...p, open: false }))}
       />
     </div>
   )
-}
-
-const labelStyle = { display: 'block', fontSize: 12.5, fontWeight: 600, color: '#374151', marginBottom: 6 }
-const inputStyle  = { width: '100%', padding: '9px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 13.5, color: '#111827', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }
-const selectStyle = { ...inputStyle, background: '#fff', cursor: 'pointer' }
-const itemRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 7, gap: 8 }
-const removeBtn   = { background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, padding: '0 2px', lineHeight: 1, flexShrink: 0, transition: 'color 0.15s' }
-
-function btnStyle(color) {
-  return {
-    background: 'none', border: 'none', cursor: 'pointer',
-    color, padding: '4px 6px', borderRadius: 6,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    transition: 'background 0.15s',
-  }
-}
-
-function EyeIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-}
-function CheckIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-}
-function XIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-}
-function TrashIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
 }
