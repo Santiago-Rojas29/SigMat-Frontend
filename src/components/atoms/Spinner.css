@@ -1,0 +1,9 @@
+@keyframes sigmat-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sigmat-spinner {
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: sigmat-spin 0.8s linear infinite;
+}

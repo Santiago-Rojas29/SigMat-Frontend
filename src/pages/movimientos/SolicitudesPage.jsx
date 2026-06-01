@@ -9,6 +9,7 @@ import { AlertBanner }   from '../../components/molecules/AlertBanner'
 import { useAuth }       from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import api               from '../../services/api'
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -90,17 +91,6 @@ function Row({ label, value }) {
     </div>
   )
 }
-
-// ── Icons ────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 15, children }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
-}
-const EyeIcon    = () => <Ic><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></Ic>
-const CheckIcon  = () => <Ic><polyline points="20 6 9 17 4 12"/></Ic>
-const XIcon      = () => <Ic><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Ic>
-const BoxIcon    = () => <Ic><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></Ic>
-const BanIcon    = () => <Ic><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></Ic>
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
@@ -425,36 +415,36 @@ export function SolicitudesPage() {
         return (
           <div style={{ display: 'flex', gap: 4 }}>
             <button title="Ver detalle" onClick={() => { setDetailSol(r); setDetailOpen(true) }} style={btnStyle('#2563eb')}>
-              <EyeIcon />
+              <AppIcon name="eye" size={15} />
             </button>
             {p.canAprobarInstructor && (
               <button title="Aprobar como Instructor" onClick={() => openConfirm(r.id_solicitud, 'aprobar-instructor', 'Aprobar como Instructor', '¿Confirmas que apruebas esta solicitud y la envías a bodega?')} style={btnStyle('#2d8000')}>
-                <CheckIcon />
+                <AppIcon name="check" size={15} />
               </button>
             )}
             {p.canAprobarAdmin && (
               <button title="Aprobar como Administrador" onClick={() => openConfirm(r.id_solicitud, 'aprobar-admin', 'Aprobar como Administrador', '¿Confirmas que apruebas esta solicitud y la envías a bodega?', { id_admin: user.id })} style={btnStyle('#2d8000')}>
-                <CheckIcon />
+                <AppIcon name="check" size={15} />
               </button>
             )}
             {p.canAprobarBodega && (
               <button title="Aprobar y registrar como Bodega" onClick={() => openConfirm(r.id_solicitud, 'aprobar-bodega', 'Aprobar — Bodega', '¿Confirmas la disponibilidad del material y apruebas la solicitud?', { id_bodega: user.id })} style={btnStyle('#2d8000')}>
-                <CheckIcon />
+                <AppIcon name="check" size={15} />
               </button>
             )}
             {p.canEntregar && (
               <button title="Registrar entrega y crear préstamo" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
-                <BoxIcon />
+                <AppIcon name="package" size={15} />
               </button>
             )}
             {p.canRechazar && (
               <button title="Rechazar" onClick={() => setRejectModal({ open: true, id: r.id_solicitud, motivo: '' })} style={btnStyle('#d97706')}>
-                <XIcon />
+                <AppIcon name="x" size={15} />
               </button>
             )}
             {p.canCancel && (
               <button title="Cancelar mi solicitud" onClick={() => openConfirm(r.id_solicitud, 'cancelar', 'Cancelar solicitud', '¿Seguro que deseas cancelar esta solicitud? Esta acción no se puede deshacer.', null, 'danger')} style={btnStyle('#6b7280')}>
-                <BanIcon />
+                <AppIcon name="ban" size={15} />
               </button>
             )}
           </div>

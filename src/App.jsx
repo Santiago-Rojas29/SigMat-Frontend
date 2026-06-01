@@ -22,6 +22,8 @@ import { UnidadesPage }     from './pages/inventario/UnidadesPage'
 import { SolicitudesPage }  from './pages/movimientos/SolicitudesPage'
 import { PrestamosPage }   from './pages/movimientos/PrestamosPage'
 import { IncidenciasPage } from './pages/control/IncidenciasPage'
+import { TrasladosPage }  from './pages/control/TrasladosPage'
+import { KardexPage }     from './pages/control/KardexPage'
 
 function App() {
   return (
@@ -71,9 +73,9 @@ function App() {
 
                 {/* Control y Seguimiento */}
                 <Route element={<PermissionRoute module="control" />}>
-                  <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="control" />} />
+                  <Route path="/control/traslados"   element={<TrasladosPage />} />
                   <Route path="/control/incidencias" element={<IncidenciasPage />} />
-                  <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="control" />} />
+                  <Route path="/control/kardex"      element={<KardexPage />} />
                 </Route>
 
               </Route>

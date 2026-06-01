@@ -1,0 +1,82 @@
+/* ── AppButton custom variants (Bootstrap extension) ─────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Primary — verde SENA */
+.btn-sena {
+  background: linear-gradient(135deg, #39A900 0%, #2e8a00 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 12px rgba(57, 169, 0, 0.35);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+.btn-sena:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2e8a00 0%, #267500 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(57, 169, 0, 0.4);
+}
+.btn-sena:disabled { opacity: 0.65; }
+
+/* Outline */
+.btn-sena-outline {
+  background: transparent;
+  color: #39A900;
+  border: 1.5px solid #39A900;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+.btn-sena-outline:hover:not(:disabled) {
+  background: rgba(57, 169, 0, 0.06);
+  color: #39A900;
+}
+
+/* Ghost */
+.btn-sena-ghost {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+.btn-sena-ghost:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* Danger */
+.btn-sena-danger {
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+.btn-sena-danger:hover:not(:disabled) {
+  background: #fecaca;
+  color: #dc2626;
+}
+
+/* Sizes */
+.btn-compact {
+  padding: 8px 14px;
+  font-size: 13.5px;
+  border-radius: 8px;
+}
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}

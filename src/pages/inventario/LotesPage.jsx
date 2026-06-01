@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { AppButton }     from '../../components/atoms/AppButton'
 import { AppInput }      from '../../components/atoms/AppInput'
@@ -12,22 +13,7 @@ import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-const FichaIcon   = () => <Ic size={15}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const CATEGORIAS_MAT = {
   'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
   'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
@@ -98,6 +84,9 @@ function CatBadge({ categoria }) {
 export function LotesPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const [searchParams] = useSearchParams()
+  const navigate       = useNavigate()
+  const materialFiltroId = searchParams.get('material')
 
   const [lotes,       setLotes]       = useState([])
   const [materiales,  setMateriales]  = useState([])
@@ -161,10 +150,18 @@ export function LotesPage() {
     vencido:    lotesRicos.filter(l => l.estado === 'vencido').length,
   }), [lotesRicos])
 
+  const materialFiltro = useMemo(
+    () => materiales.find(m => m.id === materialFiltroId) ?? null,
+    [materiales, materialFiltroId]
+  )
+
   const datosTabla = useMemo(() => {
-    if (!filtro) return lotesRicos
-    if (filtro === 'consumible') return lotesRicos.filter(l => l._material?.categoria === 'consumible')
-    if (filtro === 'perecedero') return lotesRicos.filter(l => l._material?.categoria === 'perecedero')
+    let base = materialFiltroId
+      ? lotesRicos.filter(l => l.id_material === materialFiltroId)
+      : lotesRicos
+    if (!filtro) return base
+    if (filtro === 'consumible') return base.filter(l => l._material?.categoria === 'consumible')
+    if (filtro === 'perecedero') return base.filter(l => l._material?.categoria === 'perecedero')
     if (filtro === 'proximo')    return lotesRicos.filter(l => l.estado === 'proximo a vencer')
     if (filtro === 'vencido')    return lotesRicos.filter(l => l.estado === 'vencido')
     return lotesRicos
@@ -384,10 +381,10 @@ export function LotesPage() {
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton title="Gestionar fichas" onClick={() => openFichaModal(l)}
             style={{ color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-            <FichaIcon />
+            <AppIcon name="clipboard" size={15} />
           </IconButton>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><TrashIcon /></IconButton>}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -424,6 +421,28 @@ export function LotesPage() {
   return (
     <div>
       <PageHeader title="Lotes" description="Gestión de lotes de consumibles y perecederos" />
+
+      {materialFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#fffbeb', border: '1px solid #fde68a',
+        }}>
+          <span style={{ fontSize: 13, color: '#92400e' }}>
+            Mostrando lotes de: <strong>{materialFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/lotes')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#d97706', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todos
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {cards.map(card => {
@@ -470,16 +489,16 @@ export function LotesPage() {
         emptyDescription="Registra el primer lote de consumibles o perecederos."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo lote
+            <AppIcon name="plus" /> Nuevo lote
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo lote
+              <AppIcon name="plus" /> Nuevo lote
             </AppButton>
           </>
         }
@@ -505,10 +524,11 @@ export function LotesPage() {
                 const mat = materiales.find(m => m.id === e.target.value)
                 setForm(p => ({
                   ...p,
-                  id_material:      e.target.value,
-                  fecha_ingreso:    mat?.categoria !== 'perecedero' ? '' : p.fecha_ingreso,
-                  fecha_vencimiento:mat?.categoria !== 'perecedero' ? '' : p.fecha_vencimiento,
-                  estado:           mat?.categoria !== 'perecedero' ? 'vigente' : p.estado,
+                  id_material:       e.target.value,
+                  unidad_medida:     mat?.unidad_medida ?? p.unidad_medida,
+                  fecha_ingreso:     mat?.categoria !== 'perecedero' ? '' : p.fecha_ingreso,
+                  fecha_vencimiento: mat?.categoria !== 'perecedero' ? '' : p.fecha_vencimiento,
+                  estado:            mat?.categoria !== 'perecedero' ? 'vigente' : p.estado,
                 }))
               }}>
               <option value="">— Seleccionar material —</option>
@@ -539,10 +559,13 @@ export function LotesPage() {
               <AppInput size="sm" value={form.codigo_lote} placeholder="Ej. LOT-2024-001"
                 onChange={e => set('codigo_lote', e.target.value)} />
             </FormField>
-            <FormField label="Unidad de medida" required>
-              <AppSelect size="sm" value={form.unidad_medida} onChange={e => set('unidad_medida', e.target.value)}>
-                {UNIDADES.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-              </AppSelect>
+            <FormField label="Unidad de medida">
+              <AppInput
+                size="sm"
+                value={form.unidad_medida || '—'}
+                disabled
+                style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }}
+              />
             </FormField>
           </div>
 
@@ -656,12 +679,12 @@ export function LotesPage() {
                     </div>
                     <IconButton title="Editar cantidad" onClick={() => handleFichaEditar(lf)}
                       style={{ color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a' }}>
-                      <EditIcon />
+                      <AppIcon name="edit" size={15} />
                     </IconButton>
                     <IconButton title="Quitar ficha" onClick={() => handleFichaEliminar(lf.id)}
                       disabled={fichaDeleting === lf.id}
                       style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}>
-                      <TrashIcon />
+                      <AppIcon name="trash" size={15} />
                     </IconButton>
                   </div>
                 )

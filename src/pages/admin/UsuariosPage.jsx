@@ -12,25 +12,7 @@ import { ConfirmDialog }         from '../../components/molecules/ConfirmDialog'
 import { AppModal }              from '../../components/organisms/AppModal'
 import { DataTable }             from '../../components/organisms/DataTable'
 import { PermisosUsuarioModal }  from '../../components/organisms/PermisosUsuarioModal'
-
-// ── Icons ────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-const EyeIcon     = () => <Ic size={16}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></Ic>
-const EyeOffIcon  = () => <Ic size={16}><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></Ic>
-const ShieldIcon  = () => <Ic size={15}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Ic>
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -219,13 +201,13 @@ export function UsuariosPage() {
             onClick={() => setPermisosTarget(u)}
             style={{ color: '#7c3aed' }}
           >
-            <ShieldIcon />
+            <AppIcon name="shield" size={15} />
           </IconButton>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -256,16 +238,16 @@ export function UsuariosPage() {
         emptyDescription="Crea el primer usuario del sistema."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo usuario
+            <AppIcon name="plus" /> Nuevo usuario
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo usuario
+              <AppIcon name="plus" /> Nuevo usuario
             </AppButton>
           </>
         }
@@ -353,7 +335,7 @@ export function UsuariosPage() {
               value={form.contrasena}
               placeholder={modal?.mode === 'edit' ? 'Sin cambios' : 'Mínimo 8 caracteres'}
               onChange={e => set('contrasena', e.target.value)}
-              rightIcon={showPass ? <EyeOffIcon /> : <EyeIcon />}
+              rightIcon={showPass ? <AppIcon name="eye-off" size={16} /> : <AppIcon name="eye" size={15} />}
               onRightIconClick={() => setShowPass(p => !p)}
             />
           </FormField>

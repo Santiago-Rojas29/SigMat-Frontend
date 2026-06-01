@@ -1,0 +1,407 @@
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import api from '../../services/api'
+import { AppButton }     from '../../components/atoms/AppButton'
+import { AppInput }      from '../../components/atoms/AppInput'
+import { AppSelect }     from '../../components/atoms/AppSelect'
+import { Badge }         from '../../components/atoms/Badge'
+import { IconButton }    from '../../components/atoms/IconButton'
+import { FormField }     from '../../components/molecules/FormField'
+import { PageHeader }    from '../../components/molecules/PageHeader'
+import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { AppModal }      from '../../components/organisms/AppModal'
+import { DataTable }     from '../../components/organisms/DataTable'
+import { usePermissions } from '../../context/PermissionsContext'
+import { AppIcon }        from '../../components/atoms/AppIcon'
+
+const hoy = () => new Date().toISOString().split('T')[0]
+
+const EMPTY_FORM = {
+  id_responsable: '',
+  id_ubicacion_origen: '',
+  id_ubicacion_destino: '',
+  fecha_traslado: hoy(),
+  motivo: '',
+  observaciones: '',
+}
+
+function fmt(val) {
+  if (!val) return '—'
+  return new Date(val).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export function TrasladosPage() {
+  const { hasPermission } = usePermissions()
+  const canEdit = hasPermission('control') || hasPermission('administracion')
+
+  const [traslados,   setTraslados]   = useState([])
+  const [unidades,    setUnidades]    = useState([])
+  const [lotes,       setLotes]       = useState([])
+  const [materiales,  setMateriales]  = useState([])
+  const [ubicaciones, setUbicaciones] = useState([])
+  const [usuarios,    setUsuarios]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [error,       setError]       = useState(null)
+
+  const [modal,     setModal]     = useState(false)
+  const [form,      setForm]      = useState(EMPTY_FORM)
+  const [items,     setItems]     = useState([])   // { tipo, id, cantidad?, _label }
+  const [saving,    setSaving]    = useState(false)
+  const [formError, setFormError] = useState(null)
+
+  // Para añadir ítems al traslado
+  const [addTipo,     setAddTipo]     = useState('unidad')
+  const [addId,       setAddId]       = useState('')
+  const [addCantidad, setAddCantidad] = useState('')
+
+  // ── Carga ────────────────────────────────────────────────────────────────────
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null)
+    try {
+      const [trRes, uRes, lRes, mRes, ubRes, usRes] = await Promise.all([
+        api.get('/traslado'),
+        api.get('/unidad'),
+        api.get('/lote'),
+        api.get('/material'),
+        api.get('/ubicacion'),
+        api.get('/usuario'),
+      ])
+      setTraslados(trRes.data)
+      setUnidades(uRes.data)
+      setLotes(lRes.data)
+      setMateriales(mRes.data)
+      setUbicaciones(ubRes.data)
+      setUsuarios(usRes.data)
+    } catch { setError('No se pudo cargar la información.') }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const nombreUbicacion = (id) => {
+    const u = ubicaciones.find(u => String(u.id_ubicacion) === String(id))
+    return u?.nombre ?? '—'
+  }
+  const nombreUsuario = (id) => {
+    const u = usuarios.find(u => u.id === id)
+    return u ? `${u.nombres} ${u.apellidos}` : '—'
+  }
+
+  // Unidades disponibles en origen
+  const unidadesOrigen = useMemo(() =>
+    unidades.filter(u => String(u.id_ubicacion) === String(form.id_ubicacion_origen)),
+    [unidades, form.id_ubicacion_origen]
+  )
+  // Lotes disponibles en origen
+  const lotesOrigen = useMemo(() =>
+    lotes.filter(l => String(l.id_ubicacion) === String(form.id_ubicacion_origen) && l.cantidad_disponible > 0),
+    [lotes, form.id_ubicacion_origen]
+  )
+
+  const labelItem = (tipo, id) => {
+    if (tipo === 'unidad') {
+      const u = unidades.find(u => u.id_unidad === id)
+      const m = materiales.find(m => m.id === u?.id_material)
+      return `${m?.nombre ?? '—'} · ${u?.codigo_unidad ?? ''}`
+    }
+    const l = lotes.find(l => l.id_lote === id)
+    const m = materiales.find(m => m.id === l?.id_material)
+    return `${m?.nombre ?? '—'} · ${l?.codigo_lote ?? ''} (disp: ${l?.cantidad_disponible ?? 0})`
+  }
+
+  // ── Añadir ítem ───────────────────────────────────────────────────────────────
+
+  const handleAddItem = () => {
+    if (!addId) return
+    if (addTipo === 'lote' && (!addCantidad || Number(addCantidad) <= 0)) return
+    if (items.find(i => i.id === addId)) return
+    setItems(prev => [...prev, {
+      tipo: addTipo,
+      id: addId,
+      cantidad: addTipo === 'lote' ? Number(addCantidad) : undefined,
+      _label: labelItem(addTipo, addId),
+    }])
+    setAddId('')
+    setAddCantidad('')
+  }
+
+  const handleRemoveItem = (id) => setItems(prev => prev.filter(i => i.id !== id))
+
+  // ── Guardar traslado ──────────────────────────────────────────────────────────
+
+  const handleSave = async () => {
+    if (!form.id_responsable || !form.id_ubicacion_origen || !form.id_ubicacion_destino) {
+      setFormError('Completa todos los campos requeridos.')
+      return
+    }
+    if (form.id_ubicacion_origen === form.id_ubicacion_destino) {
+      setFormError('El origen y destino deben ser diferentes.')
+      return
+    }
+
+    // Auto-incluir ítem pendiente si el usuario no hizo clic en "+"
+    let efectivos = [...items]
+    if (addId && !efectivos.find(i => i.id === addId)) {
+      if (addTipo === 'lote' && (!addCantidad || Number(addCantidad) <= 0)) {
+        setFormError('Ingresa una cantidad válida para el lote seleccionado.')
+        return
+      }
+      efectivos = [...efectivos, {
+        tipo: addTipo,
+        id: addId,
+        cantidad: addTipo === 'lote' ? Number(addCantidad) : undefined,
+        _label: labelItem(addTipo, addId),
+      }]
+    }
+
+    if (efectivos.length === 0) {
+      setFormError('Añade al menos un ítem para trasladar.')
+      return
+    }
+    setSaving(true); setFormError(null)
+    try {
+      await api.post('/traslado/realizar', {
+        ...form,
+        items: efectivos.map(({ tipo, id, cantidad }) =>
+          tipo === 'lote' ? { tipo, id, cantidad } : { tipo, id }
+        ),
+      })
+      setModal(false)
+      setForm(EMPTY_FORM)
+      setItems([])
+      loadData()
+    } catch (e) {
+      const msg = e.response?.data?.message
+      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al realizar el traslado.'))
+    } finally { setSaving(false) }
+  }
+
+  // ── Columnas ──────────────────────────────────────────────────────────────────
+
+  const columns = [
+    { key: 'id', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110 },
+    {
+      key: 'fecha_traslado',
+      header: 'Fecha',
+      width: 120,
+      render: (t) => <span style={{ color: '#374151' }}>{fmt(t.fecha_traslado)}</span>,
+    },
+    {
+      key: 'origen',
+      header: 'Origen → Destino',
+      render: (t) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <span style={{ color: '#374151', fontWeight: 500 }}>{nombreUbicacion(t.id_ubicacion_origen)}</span>
+          <span style={{ color: '#9ca3af' }}>→</span>
+          <span style={{ color: '#374151', fontWeight: 500 }}>{nombreUbicacion(t.id_ubicacion_destino)}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'responsable',
+      header: 'Responsable',
+      render: (t) => <span style={{ color: '#374151' }}>{nombreUsuario(t.id_responsable)}</span>,
+    },
+    {
+      key: 'motivo',
+      header: 'Motivo',
+      render: (t) => <span style={{ color: '#6b7280', fontSize: 13 }}>{t.motivo}</span>,
+    },
+  ]
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  return (
+    <div>
+      <PageHeader title="Traslados" description="Movimiento de ítems entre ubicaciones del almacén" />
+
+      <DataTable
+        columns={columns}
+        data={traslados}
+        loading={loading}
+        error={error}
+        onRetry={loadData}
+        rowKey="id"
+        searchable
+        searchPlaceholder="Buscar por motivo, responsable…"
+        pageSize={10}
+        emptyTitle="Sin traslados"
+        emptyDescription="Registra el primer traslado del almacén."
+        emptyAction={canEdit && (
+          <AppButton size="compact" onClick={() => setModal(true)}>
+            <AppIcon name="plus" /> Nuevo traslado
+          </AppButton>
+        )}
+        actions={
+          <>
+            <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
+              <AppIcon name="refresh" /> Actualizar
+            </AppButton>
+            {canEdit && (
+              <AppButton size="compact" onClick={() => setModal(true)}>
+                <AppIcon name="plus" /> Nuevo traslado
+              </AppButton>
+            )}
+          </>
+        }
+      />
+
+      {/* Modal nuevo traslado */}
+      <AppModal
+        isOpen={modal}
+        onClose={() => { setModal(false); setFormError(null); setItems([]) }}
+        title="Nuevo traslado"
+        maxWidth={680}
+        footer={
+          <>
+            <AppButton variant="ghost" size="compact" onClick={() => setModal(false)} disabled={saving}>
+              Cancelar
+            </AppButton>
+            <AppButton size="compact" onClick={handleSave} loading={saving}>
+              Realizar traslado
+            </AppButton>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Responsable + fecha */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Responsable" required>
+              <AppSelect size="sm" value={form.id_responsable} onChange={e => set('id_responsable', e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>)}
+              </AppSelect>
+            </FormField>
+            <FormField label="Fecha" required>
+              <AppInput size="sm" type="date" value={form.fecha_traslado} onChange={e => set('fecha_traslado', e.target.value)} />
+            </FormField>
+          </div>
+
+          {/* Origen → Destino */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Ubicación origen" required>
+              <AppSelect size="sm" value={form.id_ubicacion_origen}
+                onChange={e => { set('id_ubicacion_origen', e.target.value); setItems([]) }}>
+                <option value="">— Seleccionar —</option>
+                {ubicaciones.map(u => (
+                  <option key={u.id_ubicacion} value={String(u.id_ubicacion)}>{u.nombre}</option>
+                ))}
+              </AppSelect>
+            </FormField>
+            <FormField label="Ubicación destino" required>
+              <AppSelect size="sm" value={form.id_ubicacion_destino} onChange={e => set('id_ubicacion_destino', e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {ubicaciones
+                  .filter(u => String(u.id_ubicacion) !== String(form.id_ubicacion_origen))
+                  .map(u => (
+                    <option key={u.id_ubicacion} value={String(u.id_ubicacion)}>{u.nombre}</option>
+                  ))}
+              </AppSelect>
+            </FormField>
+          </div>
+
+          {/* Motivo + observaciones */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Motivo" required>
+              <AppInput size="sm" value={form.motivo} placeholder="Ej. Reorganización del almacén"
+                onChange={e => set('motivo', e.target.value)} />
+            </FormField>
+            <FormField label="Observaciones" required>
+              <AppInput size="sm" value={form.observaciones} placeholder="Observaciones adicionales"
+                onChange={e => set('observaciones', e.target.value)} />
+            </FormField>
+          </div>
+
+          {/* Ítems a trasladar */}
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+              Ítems a trasladar
+            </p>
+
+            {/* Añadir ítem */}
+            {form.id_ubicacion_origen && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
+                <div style={{ minWidth: 90 }}>
+                  <FormField label="Tipo">
+                    <AppSelect size="sm" value={addTipo} onChange={e => { setAddTipo(e.target.value); setAddId('') }}>
+                      <option value="unidad">Unidad</option>
+                      <option value="lote">Lote</option>
+                    </AppSelect>
+                  </FormField>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <FormField label={addTipo === 'unidad' ? 'Seleccionar unidad' : 'Seleccionar lote'}>
+                    <AppSelect size="sm" value={addId} onChange={e => setAddId(e.target.value)}>
+                      <option value="">— Seleccionar —</option>
+                      {addTipo === 'unidad'
+                        ? unidadesOrigen.map(u => {
+                            const m = materiales.find(m => m.id === u.id_material)
+                            return <option key={u.id_unidad} value={u.id_unidad}>{m?.nombre ?? '—'} · {u.codigo_unidad}</option>
+                          })
+                        : lotesOrigen.map(l => {
+                            const m = materiales.find(m => m.id === l.id_material)
+                            return <option key={l.id_lote} value={l.id_lote}>{m?.nombre ?? '—'} · {l.codigo_lote} (disp: {l.cantidad_disponible})</option>
+                          })
+                      }
+                    </AppSelect>
+                  </FormField>
+                </div>
+                {addTipo === 'lote' && (
+                  <div style={{ width: 90 }}>
+                    <FormField label="Cantidad">
+                      <AppInput size="sm" type="number" min="1" value={addCantidad}
+                        placeholder="0" onChange={e => setAddCantidad(e.target.value)} />
+                    </FormField>
+                  </div>
+                )}
+                <AppButton size="compact" onClick={handleAddItem} disabled={!addId}>
+                  <AppIcon name="plus" />
+                </AppButton>
+              </div>
+            )}
+
+            {/* Lista de ítems añadidos */}
+            {items.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: '#9ca3af', textAlign: 'center', padding: '12px 0' }}>
+                {form.id_ubicacion_origen ? 'Sin ítems añadidos aún.' : 'Selecciona el origen para ver los ítems disponibles.'}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {items.map(item => (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px', borderRadius: 8,
+                    background: item.tipo === 'unidad' ? '#eff6ff' : '#f0fdf4',
+                    border: `1px solid ${item.tipo === 'unidad' ? '#bfdbfe' : '#bbf7d0'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Badge variant={item.tipo === 'unidad' ? 'default' : 'success'} style={{ fontSize: 11 }}>
+                        {item.tipo === 'unidad' ? 'Unidad' : 'Lote'}
+                      </Badge>
+                      <span style={{ fontSize: 13, color: '#374151' }}>{item._label}</span>
+                      {item.cantidad && (
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>× {item.cantidad}</span>
+                      )}
+                    </div>
+                    <IconButton title="Quitar" onClick={() => handleRemoveItem(item.id)}>
+                      <AppIcon name="trash" size={15} />
+                    </IconButton>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+        </div>
+      </AppModal>
+    </div>
+  )
+}

@@ -6,15 +6,6 @@ import { ModuloPermisoToggle }  from '../molecules/ModuloPermisoToggle'
 import { usuarioPermisosService } from '../../services/usuarioPermisos.service'
 import { MODULOS }              from '../../constants/permisos.constants'
 
-/**
- * Organism: modal para ver y editar los permisos de un usuario específico.
- *
- * Props:
- *  - isOpen      bool
- *  - onClose     fn
- *  - usuario     { id, nombres, apellidos } | null
- *  - permisos    PermisoDB[]  — lista completa de permisos del sistema (GET /permisos)
- */
 export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
   // selecciones: { [id_permiso]: { enabled, submodulos, assignmentId } }
   const [selecciones,  setSelecciones]  = useState({})
@@ -133,19 +124,18 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
       }
     >
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13.5 }}>
+        <div className="text-center text-secondary py-5" style={{ fontSize: 13.5 }}>
           Cargando permisos…
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="d-flex flex-column gap-2">
 
-          {/* Descripción */}
-          <div style={{ marginBottom: 4 }}>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+          <div className="mb-1">
+            <p className="text-secondary mb-0" style={{ fontSize: 13 }}>
               Activa los módulos y elige submódulos específicos. Sin submódulos marcados = acceso completo al módulo.
             </p>
             {totalActivos > 0 && (
-              <p style={{ fontSize: 12, color: '#16a34a', margin: '6px 0 0', fontWeight: 500 }}>
+              <p className="mb-0 fw-500 mt-1" style={{ fontSize: 12, color: '#16a34a' }}>
                 {totalActivos} {totalActivos === 1 ? 'módulo activo' : 'módulos activos'}
               </p>
             )}

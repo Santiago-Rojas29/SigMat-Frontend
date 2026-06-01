@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { AppIcon } from '../atoms/AppIcon'
+import './Topbar.css'
 
 const PAGE_TITLES = {
   '/dashboard':              'Dashboard',
@@ -31,57 +33,11 @@ const SECTION_LABELS = {
   '/control':     'Control y Seguimiento',
 }
 
-const TOPBAR_CSS = `
-  @keyframes menuIn {
-    from { opacity: 0; transform: translateY(-10px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0)     scale(1);    }
-  }
-  @keyframes menuOut {
-    from { opacity: 1; transform: translateY(0)     scale(1);    }
-    to   { opacity: 0; transform: translateY(-10px) scale(0.97); }
-  }
-  @keyframes nameSlide {
-    from { opacity: 0; transform: translateX(-6px); }
-    to   { opacity: 1; transform: translateX(0);    }
-  }
-`
 
 function getInitials(nombres) {
   if (!nombres) return 'U'
   const words = nombres.trim().split(/\s+/).filter(Boolean)
   return words.map(w => w[0]).join('').toUpperCase().slice(0, 3)
-}
-
-function MenuIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="6"  x2="21" y2="6"/>
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
-  )
-}
-
-function ChevronIcon({ open }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transition: 'transform 0.22s ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  )
-}
-
-function LogoutIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-      <polyline points="16 17 21 12 16 7"/>
-      <line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  )
 }
 
 export function Topbar({ onMenuToggle }) {
@@ -133,8 +89,6 @@ export function Topbar({ onMenuToggle }) {
       padding: '0 24px 0 16px',
       flexShrink: 0, gap: 12,
     }}>
-      <style>{TOPBAR_CSS}</style>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <button
           onClick={onMenuToggle}
@@ -148,7 +102,7 @@ export function Topbar({ onMenuToggle }) {
           onMouseEnter={e => { e.currentTarget.style.background = '#f4f4f5'; e.currentTarget.style.color = '#18181b' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'none';    e.currentTarget.style.color = '#71717a' }}
         >
-          <MenuIcon />
+          <AppIcon name="menu" size={18} />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -192,7 +146,7 @@ export function Topbar({ onMenuToggle }) {
             {shortName}
           </span>
           <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
-            <ChevronIcon open={isOpen} />
+            {isOpen ? <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease", transform: "rotate(180deg)" }} /> : <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease" }} />}
           </span>
         </button>
 
@@ -259,7 +213,7 @@ export function Topbar({ onMenuToggle }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                <LogoutIcon />
+                <AppIcon name="logout" size={15} />
                 Cerrar sesión
               </button>
             </div>

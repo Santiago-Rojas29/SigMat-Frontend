@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { AppButton }     from '../../components/atoms/AppButton'
 import { AppInput }      from '../../components/atoms/AppInput'
@@ -12,21 +13,7 @@ import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const ESTADOS = {
   disponible:        { label: 'Disponible',       variant: 'success'  },
   prestado:          { label: 'Prestado',          variant: 'info'     },
@@ -55,6 +42,9 @@ const EMPTY_FORM = {
 export function UnidadesPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const [searchParams] = useSearchParams()
+  const navigate       = useNavigate()
+  const materialFiltroId = searchParams.get('material')
 
   const [unidades,    setUnidades]    = useState([])
   const [materiales,  setMateriales]  = useState([])
@@ -109,10 +99,18 @@ export function UnidadesPage() {
     return base
   }, [unidadesRicas])
 
+  const materialFiltro = useMemo(
+    () => materiales.find(m => m.id === materialFiltroId) ?? null,
+    [materiales, materialFiltroId]
+  )
+
   const datosTabla = useMemo(() => {
-    if (!filtro) return unidadesRicas
-    return unidadesRicas.filter(u => u.estado === filtro)
-  }, [unidadesRicas, filtro])
+    let data = materialFiltroId
+      ? unidadesRicas.filter(u => u.id_material === materialFiltroId)
+      : unidadesRicas
+    if (filtro) data = data.filter(u => u.estado === filtro)
+    return data
+  }, [unidadesRicas, filtro, materialFiltroId])
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const materialesNoConsumibles = materiales.filter(m => m.categoria === 'no consumible')
@@ -146,7 +144,8 @@ export function UnidadesPage() {
   const handleSave = async () => {
     setSaving(true); setFormError(null)
     try {
-      const payload = { ...form, id_ficha: form.id_ficha || null }
+      const { id_ficha, ...rest } = form
+      const payload = { ...rest }
       if (modal.mode === 'create') {
         await api.post('/unidad', payload)
       } else {
@@ -236,8 +235,8 @@ export function UnidadesPage() {
       width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><TrashIcon /></IconButton>}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -246,6 +245,28 @@ export function UnidadesPage() {
   return (
     <div>
       <PageHeader title="Unidades" description="Activos físicos registrados por código de placa o serial" />
+
+      {materialFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#eff6ff', border: '1px solid #bfdbfe',
+        }}>
+          <span style={{ fontSize: 13, color: '#1d4ed8' }}>
+            Mostrando unidades de: <strong>{materialFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/unidades')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#2563eb', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todas
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS.map(card => {
@@ -293,16 +314,16 @@ export function UnidadesPage() {
         emptyDescription="Registra la primera unidad física de un activo."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nueva unidad
+            <AppIcon name="plus" /> Nueva unidad
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nueva unidad
+              <AppIcon name="plus" /> Nueva unidad
             </AppButton>
           </>
         }
