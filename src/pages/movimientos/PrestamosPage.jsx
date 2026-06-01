@@ -6,6 +6,7 @@ import { AppButton } from '../../components/atoms/AppButton'
 import { Badge } from '../../components/atoms/Badge'
 import { AlertBanner } from '../../components/molecules/AlertBanner'
 import { useAuth } from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
 import api from '../../services/api'
 
 const ESTADOS = {
@@ -60,6 +61,7 @@ const DEV_INIT   = { fecha_devolucion: '', condicion: 'bueno', observaciones: ''
 
 export function PrestamosPage() {
   const { user } = useAuth()
+  const { hasPermission } = usePermissions()
 
   const [prestamos,          setPrestamos]          = useState([])
   const [validaciones,       setValidaciones]       = useState([])
@@ -104,7 +106,7 @@ export function PrestamosPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma] = await Promise.all([
+      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, un, lo, ma] = await Promise.all([
         api.get('/prestamo'),
         api.get('/validacion'),
         api.get('/solicitud'),
@@ -116,7 +118,6 @@ export function PrestamosPage() {
         api.get('/devolucion-unidad'),
         api.get('/solicitud-unidad'),
         api.get('/solicitud-lote'),
-        api.get('/usuario'),
         api.get('/unidad'),
         api.get('/lote'),
         api.get('/material'),
@@ -132,7 +133,6 @@ export function PrestamosPage() {
       setDevolucionUnidades(du.data)
       setSolicitudUnidades(su.data)
       setSolicitudLotes(sl.data)
-      setUsuarios(us.data)
       setUnidades(un.data)
       setLotes(lo.data)
       setMateriales(ma.data)
@@ -141,6 +141,7 @@ export function PrestamosPage() {
     } finally {
       setLoading(false)
     }
+    if (hasPermission('administracion')) { try { const { data } = await api.get('/usuario'); setUsuarios(data) } catch { setUsuarios([]) } }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -226,6 +227,7 @@ export function PrestamosPage() {
   const openDetalle = (p) => { setDetailPre(p); setDetailOpen(true) }
   const openEntrega = (p) => { setEntPre(p); setEntForm(ENT_INIT); setEntOpen(true) }
   const openDevolucion = (p) => {
+    if (p._dev) return
     setDevPre(p)
     setDevForm(DEV_INIT)
     const cond = {}; p._eUs.forEach(eu => { cond[eu.id_unidad] = 'bueno' }); setDevUCond(cond)
@@ -245,8 +247,8 @@ export function PrestamosPage() {
         observaciones:    crearForm.observaciones || 'Préstamo aprobado',
       })
       await api.post('/prestamo', {
-        id_usuario:    solSel?.id_solicitante ?? user.id,
-        id_validacion: val.id,
+        id_usuario:    String(solSel?.id_solicitante ?? user.id),
+        id_validacion: String(val.id),
         fecha_limite:  new Date(crearForm.fecha_limite).toISOString(),
         estado:        'activo',
       })
@@ -280,6 +282,7 @@ export function PrestamosPage() {
   }
 
   const handleDevolucion = async () => {
+    if (devPre._dev) { setDevOpen(false); return }
     setDevSaving(true)
     try {
       const entId = String(devPre._ent.id_entrega)
@@ -302,9 +305,8 @@ export function PrestamosPage() {
         api.patch(`/prestamo/${devPre.id}`, { estado: 'finalizado' }),
         api.patch(`/solicitud/${devPre._sol.id_solicitud}`, { estado: 'finalizado' }),
       ])
-      setDevOpen(false); load()
     } catch { setError('Error al registrar la devolución') }
-    finally { setDevSaving(false) }
+    finally { setDevOpen(false); setDevSaving(false); load() }
   }
 
   const columns = [
@@ -417,7 +419,7 @@ export function PrestamosPage() {
                     <option value="">Seleccionar solicitud...</option>
                     {solicitudesDisponibles.map(s => (
                       <option key={s.id_solicitud} value={s.id_solicitud}>
-                        {s.id_solicitud.slice(0, 8)} — {s._solicitante ? `${s._solicitante.nombres} ${s._solicitante.apellidos}` : s.id_solicitante} — {s._ficha?.codigo_ficha ?? s.id_ficha}
+                        {String(s.id_solicitud).slice(0, 8)} — {s._solicitante ? `${s._solicitante.nombres} ${s._solicitante.apellidos}` : s.id_solicitante} — {s._ficha?.codigo_ficha ?? s.id_ficha}
                       </option>
                     ))}
                   </select>

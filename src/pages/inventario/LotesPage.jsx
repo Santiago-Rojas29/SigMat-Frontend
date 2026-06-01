@@ -200,9 +200,6 @@ export function LotesPage() {
         cantidad_disponible: Number(form.cantidad_disponible),
         unidad_medida:       form.unidad_medida,
         fecha_entrada:       form.fecha_entrada,
-        ...(esPerecedero && form.fecha_ingreso     && { fecha_ingreso:     form.fecha_ingreso }),
-        ...(esPerecedero && form.fecha_vencimiento && { fecha_vencimiento: form.fecha_vencimiento }),
-        ...(esPerecedero && { estado: form.estado }),
       }
       if (modal.mode === 'create') {
         await api.post('/lote', payload)

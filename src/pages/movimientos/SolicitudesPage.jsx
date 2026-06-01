@@ -105,11 +105,10 @@ export function SolicitudesPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [s, sl, su, u, f, l, un, m] = await Promise.all([
+      const [s, sl, su, f, l, un, m] = await Promise.all([
         api.get('/solicitud'),
         api.get('/solicitud-lote'),
         api.get('/solicitud-unidad'),
-        api.get('/usuario'),
         api.get('/ficha'),
         api.get('/lote'),
         api.get('/unidad'),
@@ -118,7 +117,6 @@ export function SolicitudesPage() {
       setSolicitudes(s.data)
       setSolicitudLotes(sl.data)
       setSolicitudUnidades(su.data)
-      setUsuarios(u.data)
       setFichas(f.data)
       setLotes(l.data)
       setUnidades(un.data)
@@ -128,6 +126,7 @@ export function SolicitudesPage() {
     } finally {
       setLoading(false)
     }
+    if (isAdmin) { try { const { data } = await api.get('/usuario'); setUsuarios(data) } catch { setUsuarios([]) } }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -188,15 +187,15 @@ export function SolicitudesPage() {
   const openDetail = (sol) => { setDetailSol(sol); setDetailOpen(true) }
 
   const addUnidad = () => {
-    const u = unidadesDisponibles.find(u => u.id_unidad === addUnidadId)
-    if (!u || selUnidades.find(s => s.id_unidad === u.id_unidad)) return
+    const u = unidadesDisponibles.find(u => String(u.id_unidad) === addUnidadId)
+    if (!u || selUnidades.find(s => String(s.id_unidad) === addUnidadId)) return
     setSelUnidades(p => [...p, u])
     setAddUnidadId('')
   }
 
   const addLote = () => {
-    const l = lotesConStock.find(l => l.id_lote === addLoteId)
-    if (!l || selLotes.find(s => s.id_lote === l.id_lote)) return
+    const l = lotesConStock.find(l => String(l.id_lote) === addLoteId)
+    if (!l || selLotes.find(s => String(s.id_lote) === addLoteId)) return
     const cant = Math.max(1, Math.min(addLoteCant, l.cantidad_disponible))
     setSelLotes(p => [...p, { ...l, _cantidad: cant }])
     setAddLoteId('')
@@ -216,8 +215,8 @@ export function SolicitudesPage() {
         observaciones:   form.observaciones,
       })
       await Promise.all([
-        ...selUnidades.map(u => api.post('/solicitud-unidad', { id_solicitud: sol.id_solicitud, id_unidad: u.id_unidad, id_usuario: user.id })),
-        ...selLotes.map(l => api.post('/solicitud-lote', { id_solicitud: sol.id_solicitud, id_lote: l.id_lote, cantidad_solicitada: l._cantidad, id_usuario: user.id })),
+        ...selUnidades.map(u => api.post('/solicitud-unidad', { id_solicitud: String(sol.id_solicitud), id_unidad: String(u.id_unidad), id_usuario: String(user.id) })),
+        ...selLotes.map(l => api.post('/solicitud-lote', { id_solicitud: String(sol.id_solicitud), id_lote: String(l.id_lote), cantidad_solicitada: l._cantidad, id_usuario: String(user.id) })),
       ])
       closeModal()
       load()
@@ -301,18 +300,16 @@ export function SolicitudesPage() {
           <button title="Ver detalle" onClick={() => openDetail(r)} style={btnStyle('#2563eb')}>
             <EyeIcon />
           </button>
-          {r.estado === 'pendiente' && <>
+          {r.estado === 'pendiente' && isAdmin && <>
             <button title="Aprobar" onClick={() => setConfirmAprov({ open: true, id: r.id_solicitud })} style={btnStyle('#2d8000')}>
               <CheckIcon />
             </button>
             <button title="Rechazar" onClick={() => setRejectModal({ open: true, id: r.id_solicitud, obs: r.observaciones ?? '' })} style={btnStyle('#d97706')}>
               <XIcon />
             </button>
-            {isAdmin && (
-              <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id_solicitud })} style={btnStyle('#dc2626')}>
-                <TrashIcon />
-              </button>
-            )}
+            <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id_solicitud })} style={btnStyle('#dc2626')}>
+              <TrashIcon />
+            </button>
           </>}
         </div>
       ),

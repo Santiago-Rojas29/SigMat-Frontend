@@ -148,8 +148,8 @@ export function MaterialesPage() {
     setSaving(true); setFormError(null)
     try {
       const payload = { ...form }
-      if (!payload.unidad_medida)    delete payload.unidad_medida
-      if (!payload.fecha_vencimiento) delete payload.fecha_vencimiento
+      delete payload.unidad_medida
+      delete payload.fecha_vencimiento
       if (modal.mode === 'create') {
         await api.post('/material', payload)
       } else {
