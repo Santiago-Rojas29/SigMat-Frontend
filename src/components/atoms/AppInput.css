@@ -1,0 +1,41 @@
+/* ── AppInput ────────────────────────────────────────────────────────────── */
+
+.sena-input {
+  background: #F9FAF7;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 10px !important;
+  font-size: 13px;
+  color: #111827;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sena-input:focus {
+  background: #fff;
+  border-color: #39A900;
+  box-shadow: 0 0 0 3px rgba(57, 169, 0, 0.12);
+  color: #111827;
+}
+.sena-input.is-invalid { border-color: #EF4444; }
+.sena-input.is-invalid:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12); }
+
+/* Icon spacing */
+.input-icon-left {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 4;
+  display: flex;
+}
+.input-icon-right {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  background: none !important;
+  z-index: 4;
+}
+.ps-icon { padding-left: 34px; }
+.pe-icon { padding-right: 34px; }

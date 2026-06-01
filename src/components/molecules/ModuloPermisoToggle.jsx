@@ -1,15 +1,5 @@
 import { SUBMODULOS } from '../../constants/permisos.constants'
 
-/**
- * Molecule: card para activar/desactivar un módulo y elegir sus submódulos.
- *
- * Props:
- *  - modulo        string  — clave del módulo (e.g. 'inventario')
- *  - label         string  — nombre legible
- *  - enabled       bool    — si el módulo está activo
- *  - submodulos    string[] — submódulos seleccionados ([] = acceso completo)
- *  - onChange      fn({ enabled, submodulos })
- */
 export function ModuloPermisoToggle({ modulo, label, enabled, submodulos, onChange }) {
   const disponibles = SUBMODULOS[modulo] ?? []
 
@@ -30,7 +20,6 @@ export function ModuloPermisoToggle({ modulo, label, enabled, submodulos, onChan
       padding: '12px 14px',
       transition: 'all 0.15s',
     }}>
-      {/* Header del módulo */}
       <button
         type="button"
         onClick={toggle}
@@ -46,7 +35,6 @@ export function ModuloPermisoToggle({ modulo, label, enabled, submodulos, onChan
           textAlign: 'left',
         }}
       >
-        {/* Checkbox visual */}
         <span style={{
           width: 18,
           height: 18,
@@ -90,7 +78,6 @@ export function ModuloPermisoToggle({ modulo, label, enabled, submodulos, onChan
         )}
       </button>
 
-      {/* Submódulos */}
       {enabled && disponibles.length > 0 && (
         <div style={{ marginTop: 10, paddingLeft: 28 }}>
           <p style={{ fontSize: 11.5, color: '#6b7280', margin: '0 0 6px' }}>

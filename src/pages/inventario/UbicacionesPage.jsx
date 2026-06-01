@@ -12,21 +12,7 @@ import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const PALETA = [
   { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
   { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', paths: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
@@ -44,6 +30,7 @@ export function UbicacionesPage() {
   const [tipos,       setTipos]       = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [areas,       setAreas]       = useState([])
+  const [usuarios,    setUsuarios]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -56,7 +43,7 @@ export function UbicacionesPage() {
   const [delTipo,    setDelTipo]    = useState(false)
 
   const [ubModal,  setUbModal]  = useState(null)
-  const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo' })
+  const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo', id_encargado: '' })
   const [ubSaving, setUbSaving] = useState(false)
   const [ubError,  setUbError]  = useState(null)
   const [deleteUb, setDeleteUb] = useState(null)
@@ -65,14 +52,16 @@ export function UbicacionesPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [tRes, uRes, aRes] = await Promise.all([
+      const [tRes, uRes, aRes, usRes] = await Promise.all([
         api.get('/tipo-ubicacion'),
         api.get('/ubicacion'),
         api.get('/area'),
+        api.get('/usuario'),
       ])
       setTipos(tRes.data)
       setUbicaciones(uRes.data)
       setAreas(aRes.data)
+      setUsuarios(usRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -81,10 +70,11 @@ export function UbicacionesPage() {
 
   const ubicacionesRicas = useMemo(() => ubicaciones.map(u => ({
     ...u,
-    _tipo: tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion)),
-    _area: areas.find(a => String(a.id_area) === String(u.id_area)),
-    _paleta: PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
-  })), [ubicaciones, tipos, areas])
+    _tipo:      tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion)),
+    _area:      areas.find(a => String(a.id_area) === String(u.id_area)),
+    _encargado: usuarios.find(us => us.id === u.id_encargado) ?? null,
+    _paleta:    PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
+  })), [ubicaciones, tipos, areas, usuarios])
 
   const cards = useMemo(() => [
     {
@@ -154,13 +144,13 @@ export function UbicacionesPage() {
   }
 
   const openCrearUb = () => {
-    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? '') })
+    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? ''), id_encargado: '' })
     setUbError(null)
     setUbModal({ mode: 'create' })
   }
 
   const openEditUb = (u) => {
-    setUbForm({ nombre: u.nombre, descripcion: u.descripcion, estado: u.estado, id_tipo_ubicacion: String(u.id_tipo_ubicacion), id_area: String(u.id_area) })
+    setUbForm({ nombre: u.nombre, descripcion: u.descripcion, estado: u.estado, id_tipo_ubicacion: String(u.id_tipo_ubicacion), id_area: String(u.id_area), id_encargado: u.id_encargado ?? '' })
     setUbError(null)
     setUbModal({ mode: 'edit', data: u })
   }
@@ -170,7 +160,12 @@ export function UbicacionesPage() {
     if (!ubForm.id_tipo_ubicacion) { setUbError('Selecciona un tipo.'); return }
     if (!ubForm.id_area)           { setUbError('Selecciona un área.'); return }
     setUbSaving(true); setUbError(null)
-    const payload = { ...ubForm, id_area: String(ubForm.id_area), id_tipo_ubicacion: String(ubForm.id_tipo_ubicacion) }
+    const payload = {
+      ...ubForm,
+      id_area:           String(ubForm.id_area),
+      id_tipo_ubicacion: String(ubForm.id_tipo_ubicacion),
+      id_encargado:      ubForm.id_encargado || null,
+    }
     try {
       if (ubModal.mode === 'create') {
         await api.post('/ubicacion', payload)
@@ -226,13 +221,11 @@ export function UbicacionesPage() {
       render: u => <span style={{ color: '#374151' }}>{u._area?.nombre ?? '—'}</span>,
     },
     {
-      key: 'descripcion',
-      header: 'Descripción',
-      render: u => (
-        <span style={{ fontSize: 13, color: '#6b7280', maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {u.descripcion || '—'}
-        </span>
-      ),
+      key: 'encargado',
+      header: 'Encargado',
+      render: u => u._encargado
+        ? <span style={{ color: '#374151' }}>{u._encargado.nombres} {u._encargado.apellidos}</span>
+        : <span style={{ color: '#d1d5db' }}>—</span>,
     },
     {
       key: 'estado',
@@ -247,8 +240,8 @@ export function UbicacionesPage() {
       width: 90,
       render: u => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><TrashIcon /></IconButton>}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -307,19 +300,19 @@ export function UbicacionesPage() {
         emptyDescription="Registra la primera ubicación del almacén."
         emptyAction={
           <AppButton size="compact" onClick={openCrearUb}>
-            <PlusIcon /> Nueva ubicación
+            <AppIcon name="plus" /> Nueva ubicación
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={openCrearTipo}>
-              <PlusIcon /> Nuevo tipo
+              <AppIcon name="plus" /> Nuevo tipo
             </AppButton>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCrearUb}>
-              <PlusIcon /> Nueva ubicación
+              <AppIcon name="plus" /> Nueva ubicación
             </AppButton>
           </>
         }
@@ -389,12 +382,22 @@ export function UbicacionesPage() {
               </AppSelect>
             </FormField>
           </div>
-          <FormField label="Estado">
-            <AppSelect size="sm" value={ubForm.estado} onChange={e => setU('estado', e.target.value)}>
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
-            </AppSelect>
-          </FormField>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Encargado">
+              <AppSelect size="sm" value={ubForm.id_encargado} onChange={e => setU('id_encargado', e.target.value)}>
+                <option value="">— Sin encargado —</option>
+                {usuarios.map(u => (
+                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
+                ))}
+              </AppSelect>
+            </FormField>
+            <FormField label="Estado">
+              <AppSelect size="sm" value={ubForm.estado} onChange={e => setU('estado', e.target.value)}>
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </AppSelect>
+            </FormField>
+          </div>
           {ubError && <AlertBanner variant="error">{ubError}</AlertBanner>}
         </div>
       </AppModal>

@@ -1,0 +1,22 @@
+/* ── IconButton ──────────────────────────────────────────────────────────── */
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:disabled { opacity: 0.5; }
+
+.icon-btn-edit   { background: #f0f8e8; color: #39A900; }
+.icon-btn-edit:hover:not(:disabled)   { background: #e4f5cc; color: #2d8000; }
+
+.icon-btn-delete { background: #fee2e2; color: #dc2626; }
+.icon-btn-delete:hover:not(:disabled) { background: #fecaca; color: #b91c1c; }
+
+.icon-btn-default { background: #f3f4f6; color: #6b7280; }
+.icon-btn-default:hover:not(:disabled) { background: #e5e7eb; color: #374151; }

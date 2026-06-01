@@ -9,6 +9,7 @@ import { AlertBanner } from '../../components/molecules/AlertBanner'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import api from '../../services/api'
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
 const TIPOS = {
   dano:          { label: 'Daño',          variant: 'danger'  },
@@ -247,16 +248,16 @@ export function IncidenciasPage() {
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button title="Ver detalle" onClick={() => openDetail(r)} style={btnStyle('#2563eb')}>
-            <EyeIcon />
+            <AppIcon name="eye" size={15} />
           </button>
           {r.estado !== 'cerrada' && (
             <button title="Cambiar estado" onClick={() => openEstado(r)} style={btnStyle('#2d8000')}>
-              <EditIcon />
+              <AppIcon name="edit" size={15} />
             </button>
           )}
           {isAdmin && (
             <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id })} style={btnStyle('#dc2626')}>
-              <TrashIcon />
+              <AppIcon name="trash" size={15} />
             </button>
           )}
         </div>
@@ -503,14 +504,4 @@ function btnStyle(color) {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'background 0.15s',
   }
-}
-
-function EyeIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-}
-function EditIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-}
-function TrashIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
 }
