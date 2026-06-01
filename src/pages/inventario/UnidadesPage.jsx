@@ -144,8 +144,7 @@ export function UnidadesPage() {
   const handleSave = async () => {
     setSaving(true); setFormError(null)
     try {
-      const { id_ficha, ...rest } = form
-      const payload = { ...rest }
+      const payload = { ...form, id_ficha: form.id_ficha || null }
       if (modal.mode === 'create') {
         await api.post('/unidad', payload)
       } else {

@@ -458,7 +458,7 @@ export function SolicitudesPage() {
               </button>
             )}
             {p.canEntregar && (
-              <button title="Registrar entrega y crear préstamo" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
+              <button title="Registrar entrega y crear préstamo" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud, sol: r }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
                 <AppIcon name="package" size={15} />
               </button>
             )}
