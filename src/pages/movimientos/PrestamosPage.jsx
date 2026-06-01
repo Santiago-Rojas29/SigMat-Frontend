@@ -176,6 +176,8 @@ export function PrestamosPage() {
       _tieneEnt: !!ent,
       _tieneDev: !!dev,
       _numItems: sUs.length + sLs.length,
+      _usuNombre: usu ? `${usu.nombres} ${usu.apellidos}`.trim() : '—',
+      _ficCodigo: fic?.codigo_ficha ?? '—',
       _sUs: sUs.map(su => { const u = unidades.find(x => x.id_unidad === su.id_unidad); return { ...su, _u: u, _m: enrich(u?.id_material) } }),
       _sLs: sLs.map(sl => { const l = lotes.find(x => x.id_lote === sl.id_lote);       return { ...sl, _l: l, _m: enrich(l?.id_material) } }),
       _eUs: eUs.map(eu => { const u = unidades.find(x => x.id_unidad === eu.id_unidad); return { ...eu, _u: u, _m: enrich(u?.id_material) } }),
@@ -313,12 +315,12 @@ export function PrestamosPage() {
       },
     },
     {
-      key: '_usu', header: 'Solicitante',
-      render: r => r._usu ? `${r._usu.nombres} ${r._usu.apellidos}` : r.id_usuario,
+      key: '_usuNombre', header: 'Solicitante',
+      render: r => r._usu ? `${r._usu.nombres} ${r._usu.apellidos}` : '—',
     },
     {
-      key: '_fic', header: 'Ficha', width: 120,
-      render: r => r._fic?.codigo_ficha ?? r._sol?.id_ficha ?? '—',
+      key: '_ficCodigo', header: 'Ficha', width: 120,
+      render: r => r._fic?.codigo_ficha ?? '—',
     },
     {
       key: 'estado', header: 'Estado', width: 110,
@@ -384,9 +386,19 @@ export function PrestamosPage() {
         })}
       </div>
 
-      <DataTable columns={columns} data={filtrados} rowKey="id" loading={loading}
+      <DataTable
+        columns={columns}
+        data={filtrados}
+        rowKey="id"
+        loading={loading}
+        onRetry={load}
+        searchable
+        searchPlaceholder="Buscar por solicitante, ficha, estado…"
+        pageSize={10}
         actions={<AppButton size="compact" onClick={openCrear}>+ Nuevo préstamo</AppButton>}
-        emptyMessage="No hay préstamos registrados" />
+        emptyTitle="Sin préstamos"
+        emptyDescription="No hay préstamos en esta categoría."
+      />
 
       {/* ── Crear ── */}
       <AppModal isOpen={crearOpen} onClose={() => setCrearOpen(false)}
@@ -413,7 +425,7 @@ export function PrestamosPage() {
                     <option value="">Seleccionar solicitud...</option>
                     {solicitudesDisponibles.map(s => (
                       <option key={s.id_solicitud} value={s.id_solicitud}>
-                        {s.id_solicitud.slice(0, 8)} — {s._solicitante ? `${s._solicitante.nombres} ${s._solicitante.apellidos}` : s.id_solicitante} — {s._ficha?.codigo_ficha ?? s.id_ficha}
+                        {s._solicitante ? `${s._solicitante.nombres} ${s._solicitante.apellidos}` : '—'}{s._ficha ? ` — ${s._ficha.codigo_ficha}` : ''} — {new Date(s.fecha_solicitud).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                       </option>
                     ))}
                   </select>
@@ -439,7 +451,7 @@ export function PrestamosPage() {
             {solSeleccionada && <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, ...cardBg }}>
                 <Row label="Solicitante" value={solSeleccionada._solicitante ? `${solSeleccionada._solicitante.nombres} ${solSeleccionada._solicitante.apellidos}` : solSeleccionada.id_solicitante} />
-                <Row label="Ficha" value={solSeleccionada._ficha?.codigo_ficha ?? solSeleccionada.id_ficha} />
+                <Row label="Ficha" value={solSeleccionada._ficha?.codigo_ficha ?? '—'} />
                 <Row label="Tipo" value={solSeleccionada.tipo_prestamo} />
                 <Row label="Fecha límite" value={fmtFecha(crearForm.fecha_limite)} />
               </div>
@@ -485,7 +497,7 @@ export function PrestamosPage() {
         {entPre && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, ...cardBg }}>
-              <Row label="Solicitante" value={entPre._usu ? `${entPre._usu.nombres} ${entPre._usu.apellidos}` : entPre.id_usuario} />
+              <Row label="Solicitante" value={entPre._usu ? `${entPre._usu.nombres} ${entPre._usu.apellidos}` : '—'} />
               <Row label="Ficha" value={entPre._fic?.codigo_ficha ?? '—'} />
               <Row label="Fecha límite" value={fmtFecha(entPre.fecha_limite)} />
               <Row label="Ítems" value={`${entPre._numItems} ítem${entPre._numItems !== 1 ? 's' : ''}`} />
@@ -540,7 +552,7 @@ export function PrestamosPage() {
         {devPre && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, ...cardBg }}>
-              <Row label="Solicitante" value={devPre._usu ? `${devPre._usu.nombres} ${devPre._usu.apellidos}` : devPre.id_usuario} />
+              <Row label="Solicitante" value={devPre._usu ? `${devPre._usu.nombres} ${devPre._usu.apellidos}` : '—'} />
               <Row label="Ficha" value={devPre._fic?.codigo_ficha ?? '—'} />
               <Row label="Fecha límite" value={fmtFecha(devPre.fecha_limite)} />
             </div>
@@ -612,7 +624,7 @@ export function PrestamosPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Row label="ID" value={<code style={{ fontSize: 11.5 }}>{detailPre.id}</code>} />
                 <Row label="Estado" value={<Badge variant={ESTADOS[detailPre.estado]?.variant ?? 'default'}>{ESTADOS[detailPre.estado]?.label ?? detailPre.estado}</Badge>} />
-                <Row label="Solicitante" value={detailPre._usu ? `${detailPre._usu.nombres} ${detailPre._usu.apellidos}` : detailPre.id_usuario} />
+                <Row label="Solicitante" value={detailPre._usu ? `${detailPre._usu.nombres} ${detailPre._usu.apellidos}` : '—'} />
                 <Row label="Ficha" value={detailPre._fic?.codigo_ficha ?? '—'} />
                 <Row label="Tipo solicitud" value={detailPre._sol?.tipo_prestamo ?? '—'} />
                 <Row label="Fecha límite" value={fmtFecha(detailPre.fecha_limite)} />

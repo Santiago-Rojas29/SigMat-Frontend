@@ -152,7 +152,7 @@ export function SolicitudesPage() {
 
   const [rejectModal,   setRejectModal]   = useState({ open: false, id: '', motivo: '' })
   const [confirmModal,  setConfirmModal]  = useState({ open: false, id: '', type: '', body: null, title: '', desc: '', variant: 'primary' })
-  const [entregarModal, setEntregarModal] = useState({ open: false, id: '' })
+  const [entregarModal, setEntregarModal] = useState({ open: false, id: '', sol: null })
   const [entregarForm,  setEntregarForm]  = useState({ fecha_limite: '', observaciones: '' })
   const [actioning,     setActioning]     = useState(false)
 
@@ -209,19 +209,27 @@ export function SolicitudesPage() {
     return usuarios.filter(u => u.id_rol === rolBodega.id)
   }, [usuarios, roles])
 
-  const solicitudesRicas = useMemo(() => solicitudes.map(s => ({
-    ...s,
-    _solicitante: usuarios.find(u => u.id === s.id_solicitante),
-    _instructor:  usuarios.find(u => u.id === s.id_instructor),
-    _admin:       usuarios.find(u => u.id === s.id_admin),
-    _bodega:      usuarios.find(u => u.id === s.id_bodega),
-    _lotes:       solicitudLotes
-      .filter(sl => sl.id_solicitud === s.id_solicitud)
-      .map(sl => ({ ...sl, _lote: lotes.find(l => l.id_lote === sl.id_lote), _material: materiales.find(m => m.id_material === lotes.find(l => l.id_lote === sl.id_lote)?.id_material) })),
-    _unidades:    solicitudUnidades
-      .filter(su => su.id_solicitud === s.id_solicitud)
-      .map(su => ({ ...su, _unidad: unidades.find(u => u.id_unidad === su.id_unidad), _material: materiales.find(m => m.id_material === unidades.find(u => u.id_unidad === su.id_unidad)?.id_material) })),
-  })), [solicitudes, solicitudLotes, solicitudUnidades, usuarios, lotes, unidades, materiales])
+  const solicitudesRicas = useMemo(() => solicitudes.map(s => {
+    const _solicitante = usuarios.find(u => u.id === s.id_solicitante)
+    const _instructor  = usuarios.find(u => u.id === s.id_instructor)
+    const _admin       = usuarios.find(u => u.id === s.id_admin)
+    const _bodega      = usuarios.find(u => u.id === s.id_bodega)
+    return {
+      ...s,
+      _solicitante,
+      _instructor,
+      _admin,
+      _bodega,
+      _solicitanteNombre: fmtNombre(_solicitante),
+      _destinoNombre: s.tipo_flujo === 'aprendiz' ? fmtNombre(_instructor) : fmtNombre(_bodega),
+      _lotes:    solicitudLotes
+        .filter(sl => sl.id_solicitud === s.id_solicitud)
+        .map(sl => ({ ...sl, _lote: lotes.find(l => l.id_lote === sl.id_lote), _material: materiales.find(m => m.id === lotes.find(l => l.id_lote === sl.id_lote)?.id_material) })),
+      _unidades: solicitudUnidades
+        .filter(su => su.id_solicitud === s.id_solicitud)
+        .map(su => ({ ...su, _unidad: unidades.find(u => u.id_unidad === su.id_unidad), _material: materiales.find(m => m.id === unidades.find(u => u.id_unidad === su.id_unidad)?.id_material) })),
+    }
+  }), [solicitudes, solicitudLotes, solicitudUnidades, usuarios, lotes, unidades, materiales])
 
   const counts = useMemo(() => {
     const base = { total: solicitudesRicas.length, en_proceso: 0 }
@@ -239,11 +247,11 @@ export function SolicitudesPage() {
   }, [solicitudesRicas, filterKey])
 
   const unidadesDisponibles = useMemo(() =>
-    unidades.filter(u => u.estado === 'disponible').map(u => ({ ...u, _material: materiales.find(m => m.id_material === u.id_material) }))
+    unidades.filter(u => u.estado === 'disponible').map(u => ({ ...u, _material: materiales.find(m => m.id === u.id_material) }))
   , [unidades, materiales])
 
   const lotesConStock = useMemo(() =>
-    lotes.filter(l => l.cantidad_disponible > 0).map(l => ({ ...l, _material: materiales.find(m => m.id_material === l.id_material) }))
+    lotes.filter(l => l.cantidad_disponible > 0).map(l => ({ ...l, _material: materiales.find(m => m.id === l.id_material) }))
   , [lotes, materiales])
 
   // ── Per-row permissions ───────────────────────────────────────────────────
@@ -253,17 +261,19 @@ export function SolicitudesPage() {
     const nonTerm = !TERMINALES.includes(sol.estado)
     const canAprovBodega = isInstructorBodega && sol.estado === 'pendiente_bodega' &&
                            (sol.id_bodega === null || sol.id_bodega === user?.id)
+    const isBodegaAsignada = isInstructorBodega && sol.id_bodega === user?.id
 
     return {
       canCancel:             isMine && nonTerm && sol.estado !== 'aprobado',
       canAprobarInstructor:  sol.id_instructor === user?.id && sol.estado === 'pendiente_instructor',
       canAprobarAdmin:       isAdmin && sol.estado === 'pendiente_admin',
       canAprobarBodega:      canAprovBodega,
-      canEntregar:           sol.id_bodega === user?.id && sol.estado === 'aprobado',
+      canEntregar:           isBodegaAsignada && sol.estado === 'aprobado',
       canRechazar:
         (sol.id_instructor === user?.id && sol.estado === 'pendiente_instructor') ||
         (isAdmin && sol.estado === 'pendiente_admin') ||
-        canAprovBodega,
+        canAprovBodega ||
+        (isBodegaAsignada && sol.estado === 'aprobado'),
     }
   }
 
@@ -291,21 +301,35 @@ export function SolicitudesPage() {
     confirmModal.body,
   )
 
-  const handleRechazar = () =>
-    doAction(`/solicitud/${rejectModal.id}/rechazar`, { motivo_rechazo: rejectModal.motivo })
+  const handleRechazar = () => {
+    const rol = myRoleName === 'InstructorBodega' ? 'bodega' : isAdmin ? 'admin' : 'instructor'
+    doAction(`/solicitud/${rejectModal.id}/rechazar`, {
+      rol,
+      motivo_rechazo: rejectModal.motivo || undefined,
+    })
+  }
 
   const handleEntregar = async () => {
-    if (!entregarForm.fecha_limite) { setError('Debes seleccionar una fecha límite de devolución'); return }
+    const tieneUnidades = (entregarModal.sol?._unidades?.length ?? 0) > 0
+    if (tieneUnidades && !entregarForm.fecha_limite) {
+      setError('Debes seleccionar una fecha límite de devolución')
+      return
+    }
     setActioning(true)
     try {
-      await api.patch(`/solicitud/${entregarModal.id}/entregar`, {
-        id_bodega:    user.id,
-        fecha_limite: entregarForm.fecha_limite,
+      const payload = {
+        id_bodega:     user.id,
         observaciones: entregarForm.observaciones || undefined,
-      })
-      setEntregarModal({ open: false, id: '' })
+      }
+      if (tieneUnidades && entregarForm.fecha_limite) payload.fecha_limite = entregarForm.fecha_limite
+
+      const { data: res } = await api.patch(`/solicitud/${entregarModal.id}/entregar`, payload)
+      setEntregarModal({ open: false, id: '', sol: null })
       setEntregarForm({ fecha_limite: '', observaciones: '' })
       load()
+      if (res.requiere_devolucion === false) {
+        setError('')
+      }
     } catch (err) {
       const msg = err?.response?.data?.message
       setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al registrar la entrega'))
@@ -315,7 +339,8 @@ export function SolicitudesPage() {
   // ── Create ────────────────────────────────────────────────────────────────
 
   const openCreate = () => {
-    setForm(FORM_INIT)
+    const tipoFlujoAuto = myRoleName === 'Aprendiz' ? 'aprendiz' : 'instructor'
+    setForm({ ...FORM_INIT, tipo_flujo: tipoFlujoAuto })
     setSelUnidades([])
     setSelLotes([])
     setAddUnidadId('')
@@ -407,11 +432,11 @@ export function SolicitudesPage() {
       },
     },
     {
-      key: '_solicitante', header: 'Solicitante',
+      key: '_solicitanteNombre', header: 'Solicitante',
       render: r => fmtNombre(r._solicitante),
     },
     {
-      key: '_destino', header: 'Dirigido a',
+      key: '_destinoNombre', header: 'Dirigido a',
       render: r => {
         if (r.tipo_flujo === 'aprendiz' && r._instructor)  return fmtNombre(r._instructor)
         if (r.tipo_flujo === 'instructor' && r._bodega)    return fmtNombre(r._bodega)
@@ -443,7 +468,7 @@ export function SolicitudesPage() {
               </button>
             )}
             {p.canEntregar && (
-              <button title="Registrar entrega y crear préstamo" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
+              <button title="Registrar entrega" onClick={() => { setEntregarModal({ open: true, id: r.id_solicitud, sol: r }); setEntregarForm({ fecha_limite: '', observaciones: '' }) }} style={btnStyle('#0d9488')}>
                 <BoxIcon />
               </button>
             )}
@@ -506,8 +531,13 @@ export function SolicitudesPage() {
         data={datosFiltrados}
         rowKey="id_solicitud"
         loading={loading}
+        onRetry={load}
+        searchable
+        searchPlaceholder="Buscar por solicitante, estado, flujo, tipo…"
+        pageSize={10}
         actions={<AppButton size="compact" onClick={openCreate}>+ Nueva solicitud</AppButton>}
-        emptyMessage="No hay solicitudes registradas"
+        emptyTitle="Sin solicitudes"
+        emptyDescription="No hay solicitudes en esta categoría."
       />
 
       {/* ── Create modal ─────────────────────────────────────────────────── */}
@@ -535,27 +565,25 @@ export function SolicitudesPage() {
       >
         {step === 1 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {/* Tipo de flujo */}
+            {/* Tipo de flujo — auto-detectado por rol */}
             <div>
-              <label style={labelStyle}>Tipo de flujo *</label>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {[{ val: 'instructor', label: 'Instructor → Bodega', desc: 'Yo soy instructor solicitando materiales' },
-                  { val: 'aprendiz',   label: 'Aprendiz → Instructor', desc: 'Yo soy aprendiz solicitando a mi instructor' }].map(opt => (
-                  <button
-                    key={opt.val}
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, tipo_flujo: opt.val, id_instructor: '', id_bodega: '' }))}
-                    style={{
-                      flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                      border: `2px solid ${form.tipo_flujo === opt.val ? '#39A900' : '#e5e7eb'}`,
-                      background: form.tipo_flujo === opt.val ? '#f0fdf4' : '#fff',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: form.tipo_flujo === opt.val ? '#2d8000' : '#374151', marginBottom: 3 }}>{opt.label}</div>
-                    <div style={{ fontSize: 11.5, color: '#6b7280' }}>{opt.desc}</div>
-                  </button>
-                ))}
+              <label style={labelStyle}>Tipo de flujo</label>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 16px', borderRadius: 10,
+                background: '#f0fdf4', border: '2px solid #bbf7d0',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d8000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+                </svg>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                    {form.tipo_flujo === 'aprendiz' ? 'Aprendiz → Instructor' : 'Instructor → Bodega'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#4b7c45', marginTop: 1 }}>
+                    Detectado automáticamente según tu rol: <strong>{myRoleName ?? 'desconocido'}</strong>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -776,7 +804,7 @@ export function SolicitudesPage() {
                         <code style={{ fontSize: 11.5, background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: 4 }}>
                           {su._unidad?.codigo_unidad ?? su.id_unidad}
                         </code>
-                        {' '}{su._material?.nombre ?? ''}
+                        {' '}{su._material?.nombre ?? '—'}
                       </span>
                     </div>
                   ))}
@@ -795,7 +823,7 @@ export function SolicitudesPage() {
                         <code style={{ fontSize: 11.5, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 4 }}>
                           {sl._lote?.codigo_lote ?? sl.id_lote}
                         </code>
-                        {' '}{sl._material?.nombre ?? ''}
+                        {' '}{sl._material?.nombre ?? '—'}
                       </span>
                       <span style={{ fontSize: 12, color: '#6b7280' }}>× {sl.cantidad_solicitada}</span>
                     </div>
@@ -811,52 +839,63 @@ export function SolicitudesPage() {
       </AppModal>
 
       {/* ── Entregar modal ───────────────────────────────────────────────── */}
-      <AppModal
-        isOpen={entregarModal.open}
-        onClose={() => setEntregarModal({ open: false, id: '' })}
-        title="Registrar entrega"
-        maxWidth={440}
-        footer={<>
-          <AppButton variant="ghost" size="compact" onClick={() => setEntregarModal({ open: false, id: '' })} disabled={actioning}>Cancelar</AppButton>
-          <AppButton variant="primary" size="compact" onClick={handleEntregar} loading={actioning}>Confirmar entrega y crear préstamo</AppButton>
-        </>}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
-            Al confirmar se registrará la entrega del material y se creará automáticamente el préstamo en el sistema.
-          </div>
-          <div>
-            <label style={labelStyle}>
-              Fecha límite de devolución <span style={{ color: '#dc2626' }}>*</span>
-            </label>
-            <input
-              type="date"
-              value={entregarForm.fecha_limite}
-              min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
-              onChange={e => setEntregarForm(p => ({ ...p, fecha_limite: e.target.value }))}
-              style={inputStyle}
-            />
-            <span style={{ fontSize: 11.5, color: '#6b7280', marginTop: 4, display: 'block' }}>
-              Fecha en que el solicitante debe devolver el material
-            </span>
-          </div>
-          <div>
-            <label style={labelStyle}>Observaciones (opcional)</label>
-            <textarea
-              rows={3}
-              value={entregarForm.observaciones}
-              onChange={e => setEntregarForm(p => ({ ...p, observaciones: e.target.value }))}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-              placeholder="Notas adicionales sobre la entrega..."
-            />
-          </div>
-        </div>
-      </AppModal>
+      {(() => {
+        const _tieneUnidades = (entregarModal.sol?._unidades?.length ?? 0) > 0
+        return (
+          <AppModal
+            isOpen={entregarModal.open}
+            onClose={() => setEntregarModal({ open: false, id: '', sol: null })}
+            title="Registrar entrega"
+            maxWidth={440}
+            footer={<>
+              <AppButton variant="ghost" size="compact" onClick={() => setEntregarModal({ open: false, id: '', sol: null })} disabled={actioning}>Cancelar</AppButton>
+              <AppButton variant="primary" size="compact" onClick={handleEntregar} loading={actioning}>
+                {_tieneUnidades ? 'Confirmar entrega y crear préstamo' : 'Confirmar entrega'}
+              </AppButton>
+            </>}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534' }}>
+                {_tieneUnidades
+                  ? 'Al confirmar se registrará la entrega del material y se creará automáticamente el préstamo para su devolución.'
+                  : 'Al confirmar se registrará la entrega del material consumible. No se requiere devolución.'}
+              </div>
+              {_tieneUnidades && (
+                <div>
+                  <label style={labelStyle}>
+                    Fecha límite de devolución <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={entregarForm.fecha_limite}
+                    min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                    onChange={e => setEntregarForm(p => ({ ...p, fecha_limite: e.target.value }))}
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: 11.5, color: '#6b7280', marginTop: 4, display: 'block' }}>
+                    Fecha en que el solicitante debe devolver el material
+                  </span>
+                </div>
+              )}
+              <div>
+                <label style={labelStyle}>Observaciones (opcional)</label>
+                <textarea
+                  rows={3}
+                  value={entregarForm.observaciones}
+                  onChange={e => setEntregarForm(p => ({ ...p, observaciones: e.target.value }))}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                  placeholder="Notas adicionales sobre la entrega..."
+                />
+              </div>
+            </div>
+          </AppModal>
+        )
+      })()}
 
       {/* ── Reject modal ─────────────────────────────────────────────────── */}
       <AppModal
         isOpen={rejectModal.open}
-        onClose={() => setRejectModal({ open: false, id: '', motivo: '' })}
+        onClose={() => { if (!actioning) setRejectModal({ open: false, id: '', motivo: '' }) }}
         title="Rechazar solicitud"
         maxWidth={420}
         footer={<>

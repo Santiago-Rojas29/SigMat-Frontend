@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import api from '../../services/api'
 
 const PAGE_TITLES = {
   '/dashboard':              'Dashboard',
@@ -46,6 +47,13 @@ const TOPBAR_CSS = `
   }
 `
 
+const ROL_CONFIG = {
+  'Administrador':    { label: 'Administrador',  color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  'Instructor':       { label: 'Instructor',      color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  'InstructorBodega': { label: 'Instr. Bodega',   color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  'Aprendiz':         { label: 'Aprendiz',        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+}
+
 function getInitials(nombres) {
   if (!nombres) return 'U'
   const words = nombres.trim().split(/\s+/).filter(Boolean)
@@ -88,9 +96,20 @@ export function Topbar({ onMenuToggle }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen,    setIsOpen]    = useState(false)
   const [isClosing, setIsClosing] = useState(false)
+  const [rolNombre, setRolNombre] = useState(null)
   const ref = useRef(null)
+
+  useEffect(() => {
+    if (!user?.id_rol) return
+    api.get('/rol')
+      .then(({ data }) => {
+        const rol = data.find(r => r.id === user.id_rol)
+        if (rol) setRolNombre(rol.nombre)
+      })
+      .catch(() => {})
+  }, [user?.id_rol])
 
   const title   = PAGE_TITLES[pathname] ?? 'SIGMAT'
   const segment = '/' + pathname.split('/')[1]
@@ -123,6 +142,8 @@ export function Topbar({ onMenuToggle }) {
   }
 
   const showDropdown = isOpen || isClosing
+  const rolCfg = rolNombre ? (ROL_CONFIG[rolNombre] ?? null) : null
+  const rolColor = rolCfg?.color ?? '#39A900'
 
   return (
     <header style={{
@@ -176,21 +197,35 @@ export function Topbar({ onMenuToggle }) {
           onMouseEnter={e => { if (!isOpen) { e.currentTarget.style.background = '#f4f4f5'; e.currentTarget.style.borderColor = '#d4d4d8' } }}
           onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#e4e4e7' } }}
         >
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #39A900, #007832)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0,
-            letterSpacing: '0.5px',
-          }}>
-            {initials}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #39A900, #007832)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 700, color: '#fff',
+              letterSpacing: '0.5px',
+              outline: `2.5px solid ${rolColor}`,
+              outlineOffset: '2px',
+            }}>
+              {initials}
+            </div>
           </div>
-          <span style={{
-            fontSize: 13, fontWeight: 500, color: '#3f3f46',
-            maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {shortName}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+            <span style={{
+              fontSize: 13, fontWeight: 500, color: '#3f3f46',
+              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {shortName}
+            </span>
+            {rolNombre && (
+              <span style={{
+                fontSize: 10, fontWeight: 600, color: rolColor,
+                maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {rolCfg?.label ?? rolNombre}
+              </span>
+            )}
+          </div>
           <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
             <ChevronIcon open={isOpen} />
           </span>
@@ -211,6 +246,8 @@ export function Topbar({ onMenuToggle }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 16, fontWeight: 700, color: '#fff', flexShrink: 0,
                 letterSpacing: '0.5px',
+                outline: `3px solid ${rolColor}`,
+                outlineOffset: '2px',
               }}>
                 {initials}
               </div>
@@ -232,14 +269,37 @@ export function Topbar({ onMenuToggle }) {
                   {correo}
                 </div>
                 <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  marginTop: 5, background: '#f0fdf4', borderRadius: 20,
-                  padding: '2px 8px',
+                  display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
                   animation: 'nameSlide 0.22s ease both',
                   animationDelay: '0.13s',
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Sesión activa</span>
+                  {rolCfg ? (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: rolCfg.bg, border: `1px solid ${rolCfg.border}`,
+                      borderRadius: 20, padding: '2px 9px',
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: rolCfg.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: rolCfg.color, fontWeight: 700 }}>{rolCfg.label}</span>
+                    </div>
+                  ) : rolNombre ? (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: '#f4f4f5', border: '1px solid #e4e4e7',
+                      borderRadius: 20, padding: '2px 9px',
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7280', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700 }}>{rolNombre}</span>
+                    </div>
+                  ) : null}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#f0fdf4', border: '1px solid #bbf7d0',
+                    borderRadius: 20, padding: '2px 9px',
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Activo</span>
+                  </div>
                 </div>
               </div>
             </div>

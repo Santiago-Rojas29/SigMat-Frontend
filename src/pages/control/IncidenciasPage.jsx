@@ -117,9 +117,9 @@ export function IncidenciasPage() {
   )
 
   const incidenciasRicas = useMemo(() => {
-    const uMap  = Object.fromEntries(unidades.map(u => [u.id_unidad,  u]))
-    const mMap  = Object.fromEntries(materiales.map(m => [m.id_material, m]))
-    const uuMap = Object.fromEntries(usuarios.map(u => [u.id_usuario, u]))
+    const uMap  = Object.fromEntries(unidades.map(u => [u.id_unidad, u]))
+    const mMap  = Object.fromEntries(materiales.map(m => [m.id, m]))
+    const uuMap = Object.fromEntries(usuarios.map(u => [u.id, u]))
     return incidencias.map(inc => {
       const unidad   = uMap[inc.id_unidad]  ?? null
       const mat      = unidad ? mMap[unidad.id_material] ?? null : null
@@ -240,7 +240,7 @@ export function IncidenciasPage() {
     },
     {
       key: '_reporter', header: 'Reportado por',
-      render: r => r._reporter ? `${r._reporter.nombres ?? ''} ${r._reporter.apellidos ?? ''}`.trim() || r._reporter.correo : r.id_usuario,
+      render: r => r._reporter ? `${r._reporter.nombres ?? ''} ${r._reporter.apellidos ?? ''}`.trim() || r._reporter.correo : '—',
     },
     {
       key: '_acciones', header: 'Acciones', width: 120, searchable: false,
@@ -336,10 +336,10 @@ export function IncidenciasPage() {
               style={selectStyle}>
               <option value="">Seleccionar unidad disponible...</option>
               {unidadesDisponibles.map(u => {
-                const mat = materiales.find(m => m.id_material === u.id_material)
+                const mat = materiales.find(m => m.id === u.id_material)
                 return (
                   <option key={u.id_unidad} value={u.id_unidad}>
-                    {u.codigo_unidad} — {mat?.nombre ?? u.id_material}
+                    {u.codigo_unidad} — {mat?.nombre ?? '—'}
                   </option>
                 )
               })}
@@ -453,7 +453,7 @@ export function IncidenciasPage() {
               <Row label="Reportado por" value={
                 detailInc._reporter
                   ? `${detailInc._reporter.nombres ?? ''} ${detailInc._reporter.apellidos ?? ''}`.trim() || detailInc._reporter.correo
-                  : detailInc.id_usuario
+                  : '—'
               } />
             </div>
 
