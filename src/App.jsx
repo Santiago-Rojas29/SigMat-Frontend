@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { PermissionsProvider } from './context/PermissionsContext'
+import { SocketProvider } from './context/SocketContext'
 import { PrivateRoute } from './routes/PrivateRoute'
 import { PermissionRoute } from './routes/PermissionRoute'
 import { AppLayout } from './components/layout/AppLayout'
@@ -22,10 +23,14 @@ import { UnidadesPage }     from './pages/inventario/UnidadesPage'
 import { SolicitudesPage }  from './pages/movimientos/SolicitudesPage'
 import { PrestamosPage }   from './pages/movimientos/PrestamosPage'
 import { IncidenciasPage } from './pages/control/IncidenciasPage'
+import { TrasladosPage }  from './pages/control/TrasladosPage'
+import { KardexPage }     from './pages/control/KardexPage'
+import { ReportesPage }  from './pages/reportes/ReportesPage'
 
 function App() {
   return (
     <AuthProvider>
+      <SocketProvider>
       <PermissionsProvider>
         <BrowserRouter>
           <Routes>
@@ -39,6 +44,9 @@ function App() {
 
                 {/* Dashboard — always visible */}
                 <Route path="/dashboard" element={<DashboardPage />} />
+
+                {/* Reportes — always visible */}
+                <Route path="/reportes" element={<ReportesPage />} />
 
                 {/* Estructura — solo administradores */}
                 <Route element={<PermissionRoute module="administracion" />}>
@@ -71,9 +79,9 @@ function App() {
 
                 {/* Control y Seguimiento */}
                 <Route element={<PermissionRoute module="control" />}>
-                  <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="control" />} />
+                  <Route path="/control/traslados"   element={<TrasladosPage />} />
                   <Route path="/control/incidencias" element={<IncidenciasPage />} />
-                  <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="control" />} />
+                  <Route path="/control/kardex"      element={<KardexPage />} />
                 </Route>
 
               </Route>
@@ -84,6 +92,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </PermissionsProvider>
+      </SocketProvider>
     </AuthProvider>
   )
 }

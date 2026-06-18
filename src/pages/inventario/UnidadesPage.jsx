@@ -1,32 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const ESTADOS = {
   disponible:        { label: 'Disponible',       variant: 'success'  },
   prestado:          { label: 'Prestado',          variant: 'info'     },
@@ -48,18 +36,24 @@ const CARDS = [
 
 const EMPTY_FORM = {
   id_material: '', id_responsable: '', id_ubicacion: '',
-  codigo_unidad: '', estado: 'disponible',
+  codigo_unidad: '', estado: 'disponible', id_ficha: '',
 }
 
 
 export function UnidadesPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const [searchParams] = useSearchParams()
+  const navigate         = useNavigate()
+  const materialFiltroId  = searchParams.get('material')
+  const ubicacionFiltroId = searchParams.get('ubicacion')
 
   const [unidades,    setUnidades]    = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
+  const [fichas,      setFichas]      = useState([])
+  const [tipos,       setTipos]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -67,35 +61,49 @@ export function UnidadesPage() {
   const [modal,        setModal]        = useState(null)
   const [form,         setForm]         = useState(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [uRes, mRes, usRes, ubRes] = await Promise.all([
+      const [uRes, mRes, usRes, ubRes, fRes, tRes] = await Promise.all([
         api.get('/unidad'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
+        api.get('/ficha'),
+        api.get('/tipo-ubicacion'),
       ])
       setUnidades(uRes.data)
       setMateriales(mRes.data)
       setUsuarios(usRes.data)
       setUbicaciones(ubRes.data)
+      setFichas(fRes.data)
+      setTipos(tRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
+  const bodegaUbicacionIds = useMemo(() => {
+    const bodegaTipoIds = new Set(
+      tipos.filter(t => t.nombre?.toLowerCase() === 'bodega').map(t => String(t.id_tipo_ubicacion))
+    )
+    return new Set(
+      ubicaciones.filter(u => bodegaTipoIds.has(String(u.id_tipo_ubicacion))).map(u => String(u.id_ubicacion))
+    )
+  }, [tipos, ubicaciones])
+
   const unidadesRicas = useMemo(() => unidades.map(u => ({
     ...u,
     _material:    materiales.find(m => m.id === u.id_material),
     _responsable: usuarios.find(us => us.id === u.id_responsable),
     _ubicacion:   ubicaciones.find(ub => ub.id_ubicacion === u.id_ubicacion),
-  })), [unidades, materiales, usuarios, ubicaciones])
+    _ficha:       fichas.find(f => f.id_ficha === u.id_ficha),
+  })), [unidades, materiales, usuarios, ubicaciones, fichas])
 
   const counts = useMemo(() => {
     const base = { total: unidadesRicas.length }
@@ -105,10 +113,25 @@ export function UnidadesPage() {
     return base
   }, [unidadesRicas])
 
+  const materialFiltro = useMemo(
+    () => materiales.find(m => m.id === materialFiltroId) ?? null,
+    [materiales, materialFiltroId]
+  )
+
+  const ubicacionFiltro = useMemo(
+    () => ubicaciones.find(u => String(u.id_ubicacion) === ubicacionFiltroId) ?? null,
+    [ubicaciones, ubicacionFiltroId]
+  )
+
   const datosTabla = useMemo(() => {
-    if (!filtro) return unidadesRicas
-    return unidadesRicas.filter(u => u.estado === filtro)
-  }, [unidadesRicas, filtro])
+    let data = materialFiltroId
+      ? unidadesRicas.filter(u => u.id_material === materialFiltroId)
+      : ubicacionFiltroId
+        ? unidadesRicas.filter(u => String(u.id_ubicacion) === ubicacionFiltroId)
+        : unidadesRicas
+    if (filtro) data = data.filter(u => u.estado === filtro)
+    return data
+  }, [unidadesRicas, filtro, materialFiltroId, ubicacionFiltroId])
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const materialesNoConsumibles = materiales.filter(m => m.categoria === 'no consumible')
@@ -120,7 +143,6 @@ export function UnidadesPage() {
       id_responsable:usuarios[0]?.id ?? '',
       id_ubicacion:  String(ubicaciones[0]?.id_ubicacion ?? ''),
     })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -131,25 +153,33 @@ export function UnidadesPage() {
       id_ubicacion:  String(u.id_ubicacion ?? ''),
       codigo_unidad: u.codigo_unidad,
       estado:        u.estado,
+      id_ficha:      u.id_ficha ?? '',
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: u })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
-    setSaving(true); setFormError(null)
+    const esBodega = bodegaUbicacionIds.has(String(form.id_ubicacion))
+    if (esBodega && !form.id_ficha) {
+      showToast('error', 'Esta ubicación es una bodega — debes seleccionar la ficha a la que pertenece la unidad.')
+      return
+    }
+    setSaving(true)
     try {
+      const payload = { ...form, id_ficha: esBodega ? (form.id_ficha || null) : null }
       if (modal.mode === 'create') {
-        await api.post('/unidad', form)
+        await api.post('/unidad', payload)
+        showToast('success', 'Unidad creada correctamente.')
       } else {
-        await api.patch(`/unidad/${modal.data.id_unidad}`, form)
+        await api.patch(`/unidad/${modal.data.id_unidad}`, payload)
+        showToast('success', 'Unidad actualizada correctamente.')
       }
       closeModal(); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
 
@@ -157,10 +187,11 @@ export function UnidadesPage() {
     setDeleting(true)
     try {
       await api.delete(`/unidad/${deleteTarget.id_unidad}`)
+      showToast('success', 'Unidad eliminada correctamente.')
       setDeleteTarget(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
   }
 
@@ -217,22 +248,75 @@ export function UnidadesPage() {
       ),
     },
     {
+      key: 'ficha',
+      header: 'Ficha',
+      render: (u) => u._ficha
+        ? <span style={{ fontSize: 12.5, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 20 }}>{u._ficha.codigo_ficha}</span>
+        : <span style={{ color: '#9ca3af', fontSize: 12 }}>Sin ficha</span>,
+    },
+    {
       key: 'acciones',
       header: '',
       align: 'right',
       width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><TrashIcon /></IconButton>}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Unidades" description="Activos físicos registrados por código de placa o serial" />
+
+      {materialFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#eff6ff', border: '1px solid #bfdbfe',
+        }}>
+          <span style={{ fontSize: 13, color: '#1d4ed8' }}>
+            Mostrando unidades de: <strong>{materialFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/unidades')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#2563eb', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todas
+          </button>
+        </div>
+      )}
+
+      {ubicacionFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#f5f3ff', border: '1px solid #ddd6fe',
+        }}>
+          <span style={{ fontSize: 13, color: '#5b21b6' }}>
+            Ubicación: <strong>{ubicacionFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/unidades')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#7c3aed', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todas
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS.map(card => {
@@ -280,16 +364,16 @@ export function UnidadesPage() {
         emptyDescription="Registra la primera unidad física de un activo."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nueva unidad
+            <AppIcon name="plus" /> Nueva unidad
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nueva unidad
+              <AppIcon name="plus" /> Nueva unidad
             </AppButton>
           </>
         }
@@ -298,6 +382,7 @@ export function UnidadesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva unidad' : `Editar unidad — ${modal?.data?.codigo_unidad ?? ''}`}
         footer={
           <>
@@ -311,18 +396,23 @@ export function UnidadesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           <FormField label="Material (activo)" required>
-            <AppSelect size="sm" value={form.id_material} onChange={e => set('id_material', e.target.value)}>
-              <option value="">— Seleccionar material —</option>
-              {materialesNoConsumibles.map(m => (
-                <option key={m.id} value={m.id}>{m.nombre}</option>
-              ))}
-            </AppSelect>
+            <SearchableSelect
+              size="sm"
+              value={form.id_material}
+              placeholder="— Seleccionar material —"
+              options={materialesNoConsumibles.map(m => ({ value: m.id, label: m.nombre }))}
+              onChange={v => set('id_material', v)}
+            />
           </FormField>
 
           {materialesNoConsumibles.length === 0 && (
-            <AlertBanner variant="warning">
+            <div style={{
+              background: '#fffbeb', border: '1px solid #fde68a',
+              borderRadius: 8, padding: '10px 14px',
+              fontSize: 13, color: '#92400e',
+            }}>
               No hay materiales de tipo "No Consumible" registrados. Crea uno primero en el módulo de Materiales.
-            </AlertBanner>
+            </div>
           )}
 
           <FormField label="Código / Placa / Serial" required>
@@ -332,20 +422,26 @@ export function UnidadesPage() {
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
-              <AppSelect size="sm" value={form.id_responsable} onChange={e => set('id_responsable', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_responsable}
+                placeholder="— Seleccionar —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => set('id_responsable', v)}
+              />
             </FormField>
             <FormField label="Ubicación" required>
-              <AppSelect size="sm" value={form.id_ubicacion} onChange={e => set('id_ubicacion', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {ubicaciones.map(u => (
-                  <option key={u.id_ubicacion} value={u.id_ubicacion}>{u.nombre}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_ubicacion}
+                placeholder="— Seleccionar —"
+                options={ubicaciones.map(u => ({ value: u.id_ubicacion, label: u.nombre }))}
+                onChange={v => setForm(p => ({
+                  ...p,
+                  id_ubicacion: v,
+                  id_ficha: bodegaUbicacionIds.has(v) ? p.id_ficha : '',
+                }))}
+              />
             </FormField>
           </div>
 
@@ -357,7 +453,18 @@ export function UnidadesPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+          {bodegaUbicacionIds.has(String(form.id_ubicacion)) && (
+            <FormField label="Ficha asignada" required hint="Esta ubicación es una bodega — la ficha es obligatoria">
+              <SearchableSelect
+                size="sm"
+                value={form.id_ficha}
+                placeholder="— Seleccionar ficha —"
+                options={fichas.map(f => ({ value: f.id_ficha, label: f.codigo_ficha }))}
+                onChange={v => set('id_ficha', v)}
+              />
+            </FormField>
+          )}
+
         </div>
       </AppModal>
 
@@ -375,5 +482,6 @@ export function UnidadesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

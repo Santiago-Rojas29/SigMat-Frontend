@@ -1,31 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
-import { IconButton }     from '../../components/atoms/IconButton'
-import { FormField }      from '../../components/molecules/FormField'
-import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
-import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
-import { AppModal }       from '../../components/organisms/AppModal'
-import { DataTable }      from '../../components/organisms/DataTable'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon     = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon  = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon     = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon    = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
+import { FormField }        from '../../components/molecules/FormField'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { useToast }         from '../../hooks/useToast'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 const NIVEL_OPTS = [
   { value: 'tecnico',       label: 'Técnico' },
   { value: 'tecnologo',     label: 'Tecnólogo' },
@@ -45,7 +32,8 @@ export function ProgramasPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -81,7 +69,6 @@ export function ProgramasPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -90,30 +77,30 @@ export function ProgramasPage() {
       id_area: String(p.id_area), nombre: p.nombre,
       codigo_programa: p.codigo_programa, nivel_formacion: p.nivel_formacion, estado: p.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: p })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.id_area || !form.nombre || !form.codigo_programa || !form.nivel_formacion) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/programa', form)
+        showToast('success', 'Programa creado correctamente.')
       } else {
         await api.patch(`/programa/${modal.data.id_programa}`, form)
+        showToast('success', 'Programa actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -123,11 +110,12 @@ export function ProgramasPage() {
     setDeleting(true)
     try {
       await api.delete(`/programa/${deleteTarget.id_programa}`)
+      showToast('success', 'Programa eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -184,10 +172,10 @@ export function ProgramasPage() {
       render: (p) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(p)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(p)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -195,7 +183,9 @@ export function ProgramasPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Programas"
         description="Gestión de programas de formación del SENA"
@@ -216,16 +206,16 @@ export function ProgramasPage() {
         emptyDescription="Crea el primer programa de formación."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo programa
+            <AppIcon name="plus" /> Nuevo programa
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo programa
+              <AppIcon name="plus" /> Nuevo programa
             </AppButton>
           </>
         }
@@ -234,6 +224,7 @@ export function ProgramasPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo programa' : 'Editar programa'}
         footer={
           <>
@@ -250,13 +241,13 @@ export function ProgramasPage() {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ flex: 1 }}>
               <FormField label="Área" required>
-                <AppSelect size="sm" value={form.id_area}
-                  onChange={e => set('id_area', e.target.value)}>
-                  <option value="">Seleccionar área</option>
-                  {areas.map(a => (
-                    <option key={a.id_area} value={a.id_area}>{a.nombre}</option>
-                  ))}
-                </AppSelect>
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_area}
+                  placeholder="Seleccionar área"
+                  options={areas.map(a => ({ value: a.id_area, label: a.nombre }))}
+                  onChange={v => set('id_area', v)}
+                />
               </FormField>
             </div>
             <div style={{ flex: 1 }}>
@@ -290,7 +281,6 @@ export function ProgramasPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -308,5 +298,6 @@ export function ProgramasPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

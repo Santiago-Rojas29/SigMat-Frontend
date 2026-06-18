@@ -5,48 +5,13 @@ import { AppButton } from '../atoms/AppButton'
 import { AppInput } from '../atoms/AppInput'
 import { solicitarReset, resetearContrasena } from '../../services/auth.service'
 import sigmatLogo from '../../assets/sigmat-logo.png'
+import { AppIcon }        from '../../components/atoms/AppIcon'
+import { useToast }       from '../../hooks/useToast'
 
 const DURACION_CODIGO = 15 * 60 // 15 minutos en segundos
 const ESPERA_REENVIO  = 60      // segundos mínimos antes de mostrar "Reenviar"
 
 // ── Iconos ──────────────────────────────────────────────────────────────────
-const MailIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-  </svg>
-)
-const KeyIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-  </svg>
-)
-const LockIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-  </svg>
-)
-const EyeIcon = ({ open }) => open ? (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-  </svg>
-) : (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-)
-const CheckCircleIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#39A900" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-  </svg>
-)
-const ClockIcon = ({ color }) => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  </svg>
-)
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function formatTiempo(segundos) {
   const m = Math.floor(segundos / 60).toString().padStart(2, '0')
@@ -73,8 +38,9 @@ export function ForgotPasswordForm() {
   const [showConfirm, setShowConfirm]         = useState(false)
   const [loading, setLoading]                 = useState(false)
   const [loadingReenvio, setLoadingReenvio]   = useState(false)
-  const [error, setError]                     = useState('')
   const [exito, setExito]                     = useState(false)
+
+  const { showToast, toastPortal } = useToast()
   const [segundos, setSegundos]               = useState(DURACION_CODIGO)
 
   const intervalRef = useRef(null)
@@ -95,20 +61,20 @@ export function ForgotPasswordForm() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   async function handleSolicitarReset(e) {
     e.preventDefault()
-    if (!correo) { setError('Ingresa tu correo electrónico.'); return }
-    setLoading(true); setError('')
+    if (!correo) { showToast('error', 'Ingresa tu correo electrónico.'); return }
+    setLoading(true)
     try {
       await solicitarReset(correo)
       setPaso(2)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'No se encontró una cuenta con ese correo.')
+      showToast('error', err?.response?.data?.message ?? 'No se encontró una cuenta con ese correo.')
     } finally {
       setLoading(false)
     }
   }
 
   async function handleReenviar() {
-    setLoadingReenvio(true); setError('')
+    setLoadingReenvio(true)
     try {
       await solicitarReset(correo)
       // Reinicia el contador sin salir del paso 2
@@ -119,7 +85,7 @@ export function ForgotPasswordForm() {
         setSegundos(s => (s > 0 ? s - 1 : 0))
       }, 1000)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'No se pudo reenviar el código.')
+      showToast('error', err?.response?.data?.message ?? 'No se pudo reenviar el código.')
     } finally {
       setLoadingReenvio(false)
     }
@@ -127,17 +93,17 @@ export function ForgotPasswordForm() {
 
   async function handleResetearContrasena(e) {
     e.preventDefault()
-    if (codigoExpirado) { setError('El código ha expirado. Reenvía uno nuevo.'); return }
-    if (!codigo || codigo.length !== 6) { setError('Ingresa el código de 6 dígitos.'); return }
-    if (!nuevaContrasena || nuevaContrasena.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
-    if (nuevaContrasena !== confirmar) { setError('Las contraseñas no coinciden.'); return }
-    setLoading(true); setError('')
+    if (codigoExpirado) { showToast('error', 'El código ha expirado. Reenvía uno nuevo.'); return }
+    if (!codigo || codigo.length !== 6) { showToast('error', 'Ingresa el código de 6 dígitos.'); return }
+    if (!nuevaContrasena || nuevaContrasena.length < 8) { showToast('error', 'La contraseña debe tener al menos 8 caracteres.'); return }
+    if (nuevaContrasena !== confirmar) { showToast('error', 'Las contraseñas no coinciden.'); return }
+    setLoading(true)
     try {
       await resetearContrasena(correo, codigo, nuevaContrasena)
       clearInterval(intervalRef.current)
       setExito(true)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'El código es inválido o ha expirado.')
+      showToast('error', err?.response?.data?.message ?? 'El código es inválido o ha expirado.')
     } finally {
       setLoading(false)
     }
@@ -149,7 +115,7 @@ export function ForgotPasswordForm() {
       <div style={{ width: '100%', maxWidth: 420, padding: '0 8px', textAlign: 'center', animation: 'fadeUp 0.4s cubic-bezier(0.4,0,0.2,1) both' }}>
         <style>{`@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <CheckCircleIcon />
+          <AppIcon name="check-circle" size={20} />
         </div>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: '#111827', marginBottom: 10 }}>¡Contraseña actualizada!</h2>
         <p style={{ fontSize: 14.5, color: '#6B7280', lineHeight: 1.6, marginBottom: 28 }}>
@@ -165,6 +131,7 @@ export function ForgotPasswordForm() {
   // ── Render principal ──────────────────────────────────────────────────────
   return (
     <div style={{ width: '100%', maxWidth: 420, padding: '0 8px', animation: 'fadeUp 0.4s cubic-bezier(0.4,0,0.2,1) both' }}>
+      {toastPortal}
       <style>{`@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
       {/* Logo */}
@@ -207,11 +174,10 @@ export function ForgotPasswordForm() {
                 placeholder="usuario@sena.edu.co"
                 value={correo}
                 onChange={e => setCorreo(e.target.value)}
-                icon={<MailIcon />}
+                icon={<AppIcon name="mail" size={16} />}
                 autoComplete="email"
               />
             </FormField>
-            {error && <ErrorBanner mensaje={error} />}
             <AppButton type="submit" loading={loading} fullWidth style={{ marginTop: 4, height: 50, fontSize: 15.5 }}>
               Enviar código
             </AppButton>
@@ -241,7 +207,7 @@ export function ForgotPasswordForm() {
             transition: 'all 0.5s',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <ClockIcon color={colorTimer(segundos)} />
+              <AppIcon name="clock" size={20} style={{ color: colorTimer(segundos) }} />
               <span style={{ fontSize: 13, color: colorTimer(segundos), fontWeight: 600 }}>
                 {codigoExpirado
                   ? 'El código ha expirado'
@@ -277,7 +243,7 @@ export function ForgotPasswordForm() {
                 placeholder="000000"
                 value={codigo}
                 onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                icon={<KeyIcon />}
+                icon={<AppIcon name="key" size={16} />}
                 autoComplete="one-time-code"
                 disabled={codigoExpirado}
                 style={{ letterSpacing: 8, fontWeight: 700, textAlign: 'center' }}
@@ -291,8 +257,8 @@ export function ForgotPasswordForm() {
                 placeholder="Mínimo 8 caracteres"
                 value={nuevaContrasena}
                 onChange={e => setNuevaContrasena(e.target.value)}
-                icon={<LockIcon />}
-                rightIcon={<EyeIcon open={showPassword} />}
+                icon={<AppIcon name="lock" size={16} />}
+                rightIcon={showPassword ? <AppIcon name="eye-off" size={16} /> : <AppIcon name="eye" size={16} />}
                 onRightIconClick={() => setShowPassword(v => !v)}
                 disabled={codigoExpirado}
               />
@@ -305,14 +271,12 @@ export function ForgotPasswordForm() {
                 placeholder="Repite tu contraseña"
                 value={confirmar}
                 onChange={e => setConfirmar(e.target.value)}
-                icon={<LockIcon />}
-                rightIcon={<EyeIcon open={showConfirm} />}
+                icon={<AppIcon name="lock" size={16} />}
+                rightIcon={showConfirm ? <AppIcon name="eye-off" size={16} /> : <AppIcon name="eye" size={16} />}
                 onRightIconClick={() => setShowConfirm(v => !v)}
                 disabled={codigoExpirado}
               />
             </FormField>
-
-            {error && <ErrorBanner mensaje={error} />}
 
             <AppButton
               type="submit"
@@ -326,7 +290,7 @@ export function ForgotPasswordForm() {
 
             <button
               type="button"
-              onClick={() => { setPaso(1); setError(''); setCodigo('') }}
+              onClick={() => { setPaso(1); setCodigo('') }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, fontFamily: 'inherit', padding: 0 }}
             >
               ← Cambiar correo
@@ -348,13 +312,3 @@ export function ForgotPasswordForm() {
   )
 }
 
-function ErrorBanner({ mensaje }) {
-  return (
-    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#DC2626', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      {mensaje}
-    </div>
-  )
-}

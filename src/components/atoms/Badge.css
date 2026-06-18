@@ -1,0 +1,36 @@
+/* ── Badge custom variants (Bootstrap extension) ─────────────────────────── */
+
+.badge {
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.badge-sena-success {
+  background: rgba(57, 169, 0, 0.10);
+  color: #2d8000;
+  border-color: rgba(57, 169, 0, 0.25);
+}
+.badge-sena-danger {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.badge-sena-warning {
+  background: #fef3c7;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.badge-sena-info {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+.badge-sena-default {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}

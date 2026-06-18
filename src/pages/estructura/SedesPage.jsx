@@ -1,31 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
-import { IconButton }     from '../../components/atoms/IconButton'
-import { FormField }      from '../../components/molecules/FormField'
-import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
-import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
-import { AppModal }       from '../../components/organisms/AppModal'
-import { DataTable }      from '../../components/organisms/DataTable'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon     = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon  = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon     = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon    = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
+import { FormField }        from '../../components/molecules/FormField'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { useToast }         from '../../hooks/useToast'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 const EMPTY_FORM = {
   id_centro: '', nombre: '', direccion: '', telefono: '', estado: 'activo',
 }
@@ -39,7 +26,8 @@ export function SedesPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -71,7 +59,6 @@ export function SedesPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -80,30 +67,30 @@ export function SedesPage() {
       id_centro: s.id_centro, nombre: s.nombre,
       direccion: s.direccion, telefono: s.telefono, estado: s.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: s })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.id_centro || !form.nombre || !form.direccion || !form.telefono) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/sede', form)
+        showToast('success', 'Sede creada correctamente.')
       } else {
         await api.patch(`/sede/${modal.data.id_sede}`, form)
+        showToast('success', 'Sede actualizada correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -113,11 +100,12 @@ export function SedesPage() {
     setDeleting(true)
     try {
       await api.delete(`/sede/${deleteTarget.id_sede}`)
+      showToast('success', 'Sede eliminada correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -170,10 +158,10 @@ export function SedesPage() {
       render: (s) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(s)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(s)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -181,7 +169,9 @@ export function SedesPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Sedes"
         description="Gestión de sedes de los centros de formación del SENA"
@@ -202,16 +192,16 @@ export function SedesPage() {
         emptyDescription="Crea la primera sede."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nueva sede
+            <AppIcon name="plus" /> Nueva sede
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nueva sede
+              <AppIcon name="plus" /> Nueva sede
             </AppButton>
           </>
         }
@@ -220,6 +210,7 @@ export function SedesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva sede' : 'Editar sede'}
         footer={
           <>
@@ -234,13 +225,13 @@ export function SedesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Centro" required>
-            <AppSelect size="sm" value={form.id_centro}
-              onChange={e => set('id_centro', e.target.value)}>
-              <option value="">Seleccionar centro</option>
-              {centros.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </AppSelect>
+            <SearchableSelect
+              size="sm"
+              value={form.id_centro}
+              placeholder="Seleccionar centro"
+              options={centros.map(c => ({ value: c.id, label: c.nombre }))}
+              onChange={v => set('id_centro', v)}
+            />
           </FormField>
 
           <FormField label="Nombre" required>
@@ -267,7 +258,6 @@ export function SedesPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -285,5 +275,6 @@ export function SedesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

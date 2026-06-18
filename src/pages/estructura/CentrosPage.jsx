@@ -7,26 +7,11 @@ import { Badge }          from '../../components/atoms/Badge'
 import { IconButton }     from '../../components/atoms/IconButton'
 import { FormField }      from '../../components/molecules/FormField'
 import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
+import { useToast }       from '../../hooks/useToast'
 import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
 import { AppModal }       from '../../components/organisms/AppModal'
 import { DataTable }      from '../../components/organisms/DataTable'
-
-// ── Icons ────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon     = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon  = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon     = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon    = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -44,7 +29,8 @@ export function CentrosPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -74,7 +60,6 @@ export function CentrosPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -83,30 +68,30 @@ export function CentrosPage() {
       nombre: c.nombre, ciudad: c.ciudad,
       direccion: c.direccion, telefono: c.telefono, estado: c.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: c })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.nombre || !form.ciudad || !form.direccion || !form.telefono) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/centro', form)
+        showToast('success', 'Centro creado correctamente.')
       } else {
         await api.patch(`/centro/${modal.data.id}`, form)
+        showToast('success', 'Centro actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -116,11 +101,12 @@ export function CentrosPage() {
     setDeleting(true)
     try {
       await api.delete(`/centro/${deleteTarget.id}`)
+      showToast('success', 'Centro eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -171,10 +157,10 @@ export function CentrosPage() {
       render: (c) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(c)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(c)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -184,7 +170,9 @@ export function CentrosPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Centros"
         description="Gestión de centros de formación del SENA"
@@ -205,16 +193,16 @@ export function CentrosPage() {
         emptyDescription="Crea el primer centro de formación."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo centro
+            <AppIcon name="plus" /> Nuevo centro
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo centro
+              <AppIcon name="plus" /> Nuevo centro
             </AppButton>
           </>
         }
@@ -224,6 +212,7 @@ export function CentrosPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo centro' : 'Editar centro'}
         footer={
           <>
@@ -266,7 +255,6 @@ export function CentrosPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -285,5 +273,6 @@ export function CentrosPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

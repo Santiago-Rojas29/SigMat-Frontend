@@ -1,9 +1,9 @@
 export const MODULOS = [
-  { value: 'estructura',    label: 'Estructura' },
+  { value: 'estructura',     label: 'Estructura' },
   { value: 'administracion', label: 'Administración' },
-  { value: 'inventario',    label: 'Inventario' },
-  { value: 'movimientos',   label: 'Movimientos' },
-  { value: 'control',       label: 'Control y Seguimiento' },
+  { value: 'inventario',     label: 'Inventario' },
+  { value: 'movimientos',    label: 'Movimientos' },
+  { value: 'control',        label: 'Control y Seguimiento' },
 ]
 
 export const SUBMODULOS = {
@@ -36,8 +36,34 @@ export const SUBMODULOS = {
   ],
 }
 
-export const MODULO_LABELS = Object.fromEntries(MODULOS.map(m => [m.value, m.label]))
+// ── Acciones globales (aplican a todos los módulos) ────────────────────────────
+export const ACCIONES_GLOBALES = [
+  { value: 'ver',      label: 'Ver' },
+  { value: 'crear',    label: 'Crear' },
+  { value: 'editar',   label: 'Editar' },
+  { value: 'eliminar', label: 'Eliminar' },
+]
 
+// ── Acciones adicionales específicas por módulo ────────────────────────────────
+export const ACCIONES_EXTRA = {
+  movimientos: [
+    { value: 'solicitar', label: 'Solicitar' },
+    { value: 'aprobar',   label: 'Aprobar'   },
+    { value: 'rechazar',  label: 'Rechazar'  },
+    { value: 'prestar',   label: 'Prestar'   },
+    { value: 'entregar',  label: 'Entregar'  },
+    { value: 'devolver',  label: 'Devolver'  },
+  ],
+  inventario: [
+    { value: 'ajustar_stock', label: 'Ajustar stock' },
+  ],
+  control: [
+    { value: 'generar_reporte', label: 'Generar reporte' },
+  ],
+}
+
+// ── Helpers de etiquetas ───────────────────────────────────────────────────────
+export const MODULO_LABELS    = Object.fromEntries(MODULOS.map(m => [m.value, m.label]))
 export const SUBMODULO_LABELS = Object.fromEntries(
   Object.entries(SUBMODULOS).flatMap(([, subs]) => subs.map(s => [s.value, s.label]))
 )

@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import api from '../../services/api'
+import { AppIcon } from '../atoms/AppIcon'
+import { NotificacionBell } from '../atoms/NotificacionBell'
+import './Topbar.css'
 
 const PAGE_TITLES = {
   '/dashboard':              'Dashboard',
@@ -31,20 +35,13 @@ const SECTION_LABELS = {
   '/control':     'Control y Seguimiento',
 }
 
-const TOPBAR_CSS = `
-  @keyframes menuIn {
-    from { opacity: 0; transform: translateY(-10px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0)     scale(1);    }
-  }
-  @keyframes menuOut {
-    from { opacity: 1; transform: translateY(0)     scale(1);    }
-    to   { opacity: 0; transform: translateY(-10px) scale(0.97); }
-  }
-  @keyframes nameSlide {
-    from { opacity: 0; transform: translateX(-6px); }
-    to   { opacity: 1; transform: translateX(0);    }
-  }
-`
+
+const ROL_CONFIG = {
+  'Administrador':    { label: 'Administrador',  color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  'Instructor':       { label: 'Instructor',      color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  'InstructorBodega': { label: 'Instr. Bodega',   color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  'Aprendiz':         { label: 'Aprendiz',        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+}
 
 function getInitials(nombres) {
   if (!nombres) return 'U'
@@ -52,45 +49,24 @@ function getInitials(nombres) {
   return words.map(w => w[0]).join('').toUpperCase().slice(0, 3)
 }
 
-function MenuIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="6"  x2="21" y2="6"/>
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
-  )
-}
-
-function ChevronIcon({ open }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transition: 'transform 0.22s ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  )
-}
-
-function LogoutIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-      <polyline points="16 17 21 12 16 7"/>
-      <line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  )
-}
-
-export function Topbar({ onMenuToggle }) {
+export function Topbar({ onMenuToggle, isMobile }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen,    setIsOpen]    = useState(false)
   const [isClosing, setIsClosing] = useState(false)
+  const [rolNombre, setRolNombre] = useState(null)
   const ref = useRef(null)
+
+  useEffect(() => {
+    if (!user?.id_rol) return
+    api.get('/rol')
+      .then(({ data }) => {
+        const rol = data.find(r => r.id === user.id_rol)
+        if (rol) setRolNombre(rol.nombre)
+      })
+      .catch(() => {})
+  }, [user?.id_rol])
 
   const title   = PAGE_TITLES[pathname] ?? 'SIGMAT'
   const segment = '/' + pathname.split('/')[1]
@@ -123,6 +99,8 @@ export function Topbar({ onMenuToggle }) {
   }
 
   const showDropdown = isOpen || isClosing
+  const rolCfg = rolNombre ? (ROL_CONFIG[rolNombre] ?? null) : null
+  const rolColor = rolCfg?.color ?? '#39A900'
 
   return (
     <header style={{
@@ -133,8 +111,6 @@ export function Topbar({ onMenuToggle }) {
       padding: '0 24px 0 16px',
       flexShrink: 0, gap: 12,
     }}>
-      <style>{TOPBAR_CSS}</style>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <button
           onClick={onMenuToggle}
@@ -148,19 +124,25 @@ export function Topbar({ onMenuToggle }) {
           onMouseEnter={e => { e.currentTarget.style.background = '#f4f4f5'; e.currentTarget.style.color = '#18181b' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'none';    e.currentTarget.style.color = '#71717a' }}
         >
-          <MenuIcon />
+          <AppIcon name="menu" size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {section && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {section && !isMobile && (
             <>
-              <span style={{ fontSize: 13, color: '#a1a1aa' }}>{section}</span>
+              <span style={{ fontSize: 13, color: '#a1a1aa', whiteSpace: 'nowrap' }}>{section}</span>
               <span style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1 }}>/</span>
             </>
           )}
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#18181b' }}>{title}</span>
+          <span style={{
+            fontSize: isMobile ? 14 : 15, fontWeight: 600, color: '#18181b',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{title}</span>
         </div>
       </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <NotificacionBell />
 
       <div ref={ref} style={{ position: 'relative' }}>
         <button
@@ -169,31 +151,49 @@ export function Topbar({ onMenuToggle }) {
             display: 'flex', alignItems: 'center', gap: 8,
             background: isOpen ? '#f0f8e8' : '#fafafa',
             border: `1px solid ${isOpen ? '#c3e6a0' : '#e4e4e7'}`,
-            borderRadius: 20, padding: '5px 12px 5px 6px',
+            borderRadius: 20, padding: isMobile ? '5px 6px' : '5px 12px 5px 6px',
             cursor: 'pointer', transition: 'background 0.18s, border-color 0.18s',
             outline: 'none',
           }}
           onMouseEnter={e => { if (!isOpen) { e.currentTarget.style.background = '#f4f4f5'; e.currentTarget.style.borderColor = '#d4d4d8' } }}
           onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#e4e4e7' } }}
         >
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #39A900, #007832)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0,
-            letterSpacing: '0.5px',
-          }}>
-            {initials}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #39A900, #007832)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 700, color: '#fff',
+              letterSpacing: '0.5px',
+              outline: `2.5px solid ${rolColor}`,
+              outlineOffset: '2px',
+            }}>
+              {initials}
+            </div>
           </div>
-          <span style={{
-            fontSize: 13, fontWeight: 500, color: '#3f3f46',
-            maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {shortName}
-          </span>
-          <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
-            <ChevronIcon open={isOpen} />
-          </span>
+          {!isMobile && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              <span style={{
+                fontSize: 13, fontWeight: 500, color: '#3f3f46',
+                maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {shortName}
+              </span>
+              {rolNombre && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, color: rolColor,
+                  maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {rolCfg?.label ?? rolNombre}
+                </span>
+              )}
+            </div>
+          )}
+          {!isMobile && (
+            <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
+              {isOpen ? <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease", transform: "rotate(180deg)" }} /> : <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease" }} />}
+            </span>
+          )}
         </button>
 
         {showDropdown && (
@@ -211,6 +211,8 @@ export function Topbar({ onMenuToggle }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 16, fontWeight: 700, color: '#fff', flexShrink: 0,
                 letterSpacing: '0.5px',
+                outline: `3px solid ${rolColor}`,
+                outlineOffset: '2px',
               }}>
                 {initials}
               </div>
@@ -232,14 +234,37 @@ export function Topbar({ onMenuToggle }) {
                   {correo}
                 </div>
                 <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  marginTop: 5, background: '#f0fdf4', borderRadius: 20,
-                  padding: '2px 8px',
+                  display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
                   animation: 'nameSlide 0.22s ease both',
                   animationDelay: '0.13s',
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Sesión activa</span>
+                  {rolCfg ? (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: rolCfg.bg, border: `1px solid ${rolCfg.border}`,
+                      borderRadius: 20, padding: '2px 9px',
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: rolCfg.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: rolCfg.color, fontWeight: 700 }}>{rolCfg.label}</span>
+                    </div>
+                  ) : rolNombre ? (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: '#f4f4f5', border: '1px solid #e4e4e7',
+                      borderRadius: 20, padding: '2px 9px',
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7280', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700 }}>{rolNombre}</span>
+                    </div>
+                  ) : null}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#f0fdf4', border: '1px solid #bbf7d0',
+                    borderRadius: 20, padding: '2px 9px',
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Activo</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -259,12 +284,13 @@ export function Topbar({ onMenuToggle }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                <LogoutIcon />
+                <AppIcon name="logout" size={15} />
                 Cerrar sesión
               </button>
             </div>
           </div>
         )}
+      </div>
       </div>
     </header>
   )

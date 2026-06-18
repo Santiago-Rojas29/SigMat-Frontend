@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import api from '../../services/api'
 import { AppButton }     from '../../components/atoms/AppButton'
 import { AppInput }      from '../../components/atoms/AppInput'
@@ -7,34 +9,19 @@ import { Badge }         from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
-// ── Configuración de categorías ───────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const CATEGORIAS = {
-  'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', variant: 'success' },
-  'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', variant: 'default' },
-  'perecedero':    { label: 'Perecedero',    color: '#d97706', bg: '#fffbeb', border: '#fde68a', light: '#fef3c7', variant: 'warning' },
+  'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
+  'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
+  'perecedero':    { label: 'Perecedero',    color: '#d97706', bg: '#fffbeb', border: '#fde68a', light: '#fef3c7' },
 }
 
 const CATEGORIA_OPTIONS = [
@@ -44,27 +31,21 @@ const CATEGORIA_OPTIONS = [
 ]
 
 const UNIDADES_MEDIDA = [
-  { value: 'und',     label: 'Unidades (und)' },
-  { value: 'cja',     label: 'Cajas (cja)' },
-  { value: 'paq',     label: 'Paquetes (paq)' },
-  { value: 'res',     label: 'Resmas (res)' },
-  { value: 'bol',     label: 'Bolsas (bol)' },
-  { value: 'rol',     label: 'Rollos (rol)' },
-  { value: 'L',       label: 'Litros (L)' },
-  { value: 'mL',      label: 'Mililitros (mL)' },
-  { value: 'kg',      label: 'Kilogramos (kg)' },
-  { value: 'g',       label: 'Gramos (g)' },
-  { value: 'm',       label: 'Metros (m)' },
-  { value: 'cm',      label: 'Centímetros (cm)' },
+  { value: 'und', label: 'Unidades (und)' },
+  { value: 'cja', label: 'Cajas (cja)' },
+  { value: 'paq', label: 'Paquetes (paq)' },
+  { value: 'res', label: 'Resmas (res)' },
+  { value: 'bol', label: 'Bolsas (bol)' },
+  { value: 'rol', label: 'Rollos (rol)' },
+  { value: 'L',   label: 'Litros (L)' },
+  { value: 'mL',  label: 'Mililitros (mL)' },
+  { value: 'kg',  label: 'Kilogramos (kg)' },
+  { value: 'g',   label: 'Gramos (g)' },
+  { value: 'm',   label: 'Metros (m)' },
+  { value: 'cm',  label: 'Centímetros (cm)' },
 ]
 
-const EMPTY_FORM = {
-  id_ficha: '', nombre: '', categoria: 'consumible',
-  tipo: '', marca: '', modelo: '', descripcion: '', codigo_unspsc: '',
-  unidad_medida: '', fecha_vencimiento: '',
-}
-
-const CARDS_MAT = [
+const CARDS = [
   { key: null,           label: 'Todos',          color: '#111827', bg: '#fff',    border: '#e5e7eb',
     paths: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></> },
   { key: 'consumible',    label: 'Consumibles',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0',
@@ -75,33 +56,50 @@ const CARDS_MAT = [
     paths: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></> },
 ]
 
+const EMPTY_FORM = {
+  nombre: '', categoria: 'consumible', tipo: '',
+  marca: '', modelo: '', descripcion: '', codigo_unspsc: '', unidad_medida: '',
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const esNoConsumible = (cat) => cat === 'no consumible'
+const esConsumibleOPerecedero = (cat) => cat === 'consumible' || cat === 'perecedero'
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function MaterialesPage() {
   const { hasPermission } = usePermissions()
-  const isAdmin = hasPermission('administracion')
+  const isAdmin  = hasPermission('administracion')
+  const navigate = useNavigate()
 
   const [materiales,   setMateriales]   = useState([])
-  const [fichas,       setFichas]       = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
-  const [activeCateg,  setActiveCateg]  = useState(null) // null = todos
+  const [activeCateg,  setActiveCateg]  = useState(null)
 
   const [modal,        setModal]        = useState(null)
   const [form,         setForm]         = useState(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
+
+  // Importar
+  const fileInputRef                    = useRef(null)
+  const [importModal,  setImportModal]  = useState(false)
+  const [importRows,   setImportRows]   = useState([])
+  const [importError,  setImportError]  = useState(null)  // keep for file-read errors shown inline
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState(null)
 
   // ── Carga ──────────────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [mRes, fRes] = await Promise.all([api.get('/material'), api.get('/ficha')])
-      setMateriales(mRes.data)
-      setFichas(fRes.data)
+      const { data } = await api.get('/material')
+      setMateriales(data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -113,52 +111,57 @@ export function MaterialesPage() {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const cfg = (cat) => CATEGORIAS[cat] ?? CATEGORIAS['consumible']
   const countCat = (cat) => materiales.filter(m => m.categoria === cat).length
-  const fichaNombre = (id) => {
-    const f = fichas.find(f => f.id_ficha === id)
-    return f ? `Ficha ${f.codigo_ficha}` : '—'
-  }
+  const datosTabla = activeCateg ? materiales.filter(m => m.categoria === activeCateg) : materiales
 
-  const datosTabla = activeCateg
-    ? materiales.filter(m => m.categoria === activeCateg)
-    : materiales
+  const resetCondicionales = (categoria) => {
+    setForm(p => ({
+      ...p,
+      categoria,
+      modelo: esNoConsumible(categoria) ? p.modelo : '',
+      unidad_medida: esConsumibleOPerecedero(categoria) ? p.unidad_medida : '',
+    }))
+  }
 
   // ── Modal ──────────────────────────────────────────────────────────────────
 
   const openCreate = () => {
-    setForm({ ...EMPTY_FORM, categoria: activeCateg ?? 'consumible', id_ficha: fichas[0]?.id_ficha ?? '' })
-    setFormError(null)
+    setForm({ ...EMPTY_FORM, categoria: activeCateg ?? 'consumible' })
     setModal({ mode: 'create' })
   }
 
   const openEdit = (m) => {
     setForm({
-      id_ficha: m.id_ficha, nombre: m.nombre, categoria: m.categoria,
-      tipo: m.tipo, marca: m.marca, modelo: m.modelo,
-      descripcion: m.descripcion, codigo_unspsc: m.codigo_unspsc,
+      nombre:        m.nombre,
+      categoria:     m.categoria,
+      tipo:          m.tipo,
+      marca:         m.marca ?? '',
+      modelo:        m.modelo ?? '',
+      descripcion:   m.descripcion,
+      codigo_unspsc: m.codigo_unspsc,
       unidad_medida: m.unidad_medida ?? '',
-      fecha_vencimiento: m.fecha_vencimiento ? m.fecha_vencimiento.substring(0, 10) : '',
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: m })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
-    setSaving(true); setFormError(null)
+    setSaving(true)
     try {
       const payload = { ...form }
-      delete payload.unidad_medida
-      delete payload.fecha_vencimiento
+      if (!payload.unidad_medida)    delete payload.unidad_medida
+      if (!payload.fecha_vencimiento) delete payload.fecha_vencimiento
       if (modal.mode === 'create') {
         await api.post('/material', payload)
+        showToast('success', 'Material creado correctamente.')
       } else {
         await api.patch(`/material/${modal.data.id}`, payload)
+        showToast('success', 'Material actualizado correctamente.')
       }
       closeModal(); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
 
@@ -166,11 +169,85 @@ export function MaterialesPage() {
     setDeleting(true)
     try {
       await api.delete(`/material/${deleteTarget.id}`)
+      showToast('success', 'Material eliminado correctamente.')
       setDeleteTarget(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
+  }
+
+  // ── Importar ───────────────────────────────────────────────────────────────
+
+  const PLANTILLA_COLS = ['nombre','categoria','tipo','marca','modelo','descripcion','codigo_unspsc','unidad_medida']
+  const PLANTILLA_EJEMPLO = [
+    ['Lápiz HB','consumible','Papelería','','','Lápiz de grafito HB','44122001','und'],
+    ['Computador HP','no consumible','Laptop','HP','ProBook 440','Portátil 14 pulgadas','43211503',''],
+    ['Carne de res','perecedero','Proteína','','','Carne molida fresca','50102300','kg'],
+  ]
+
+  const descargarPlantilla = () => {
+    const ws = XLSX.utils.aoa_to_sheet([PLANTILLA_COLS, ...PLANTILLA_EJEMPLO])
+    ws['!cols'] = PLANTILLA_COLS.map(() => ({ wch: 20 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Materiales')
+    XLSX.writeFile(wb, 'plantilla_materiales.xlsx')
+  }
+
+  const handleFileChange = (e) => {
+    setImportError(null)
+    setImportRows([])
+    setImportResult(null)
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        if (rows.length === 0) { setImportError('El archivo está vacío.'); return }
+        const mapped = rows.map(r => ({
+          nombre:        String(r['nombre'] ?? '').trim(),
+          categoria:     String(r['categoria'] ?? '').trim().toLowerCase(),
+          tipo:          String(r['tipo'] ?? '').trim(),
+          marca:         String(r['marca'] ?? '').trim() || null,
+          modelo:        String(r['modelo'] ?? '').trim() || null,
+          descripcion:   String(r['descripcion'] ?? '').trim(),
+          codigo_unspsc: String(r['codigo_unspsc'] ?? '').trim(),
+          unidad_medida: String(r['unidad_medida'] ?? '').trim() || null,
+        }))
+        setImportRows(mapped)
+      } catch {
+        setImportError('No se pudo leer el archivo. Verifica que sea .xlsx o .csv válido.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+    e.target.value = ''
+  }
+
+  const handleImportar = async () => {
+    if (!importRows.length) return
+    setImporting(true)
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const { data } = await api.post('/material/importar', { materiales: importRows })
+      setImportResult(data)
+      if (data.exitosos > 0) loadData()
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al importar.'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const closeImport = () => {
+    setImportModal(false)
+    setImportRows([])
+    setImportError(null)
+    setImportResult(null)
   }
 
   const handleBulkDelete = async (ids) => {
@@ -203,9 +280,19 @@ export function MaterialesPage() {
         )
       },
     },
-    { key: 'marca',  header: 'Marca',  render: (m) => <span style={{ color: '#374151' }}>{m.marca}</span> },
-    { key: 'modelo', header: 'Modelo', render: (m) => <span style={{ color: '#374151' }}>{m.modelo}</span> },
-    { key: 'tipo',   header: 'Tipo',   render: (m) => <span style={{ color: '#6b7280' }}>{m.tipo}</span> },
+    { key: 'tipo', header: 'Tipo', render: (m) => <span style={{ color: '#6b7280' }}>{m.tipo}</span> },
+    {
+      key: 'marca_modelo',
+      header: 'Marca / Modelo',
+      render: (m) => (
+        <div style={{ fontSize: 13 }}>
+          {m.marca && <span style={{ color: '#374151' }}>{m.marca}</span>}
+          {m.marca && m.modelo && <span style={{ color: '#d1d5db', margin: '0 4px' }}>·</span>}
+          {m.modelo && <span style={{ color: '#6b7280' }}>{m.modelo}</span>}
+          {!m.marca && !m.modelo && <span style={{ color: '#d1d5db' }}>—</span>}
+        </div>
+      ),
+    },
     {
       key: 'unidad_medida',
       header: 'Unidad',
@@ -213,29 +300,6 @@ export function MaterialesPage() {
       render: (m) => m.unidad_medida
         ? <Badge variant="default" style={{ fontSize: 11 }}>{m.unidad_medida}</Badge>
         : <span style={{ color: '#d1d5db' }}>—</span>,
-    },
-    {
-      key: 'fecha_vencimiento',
-      header: 'Vencimiento',
-      width: 120,
-      render: (m) => {
-        if (!m.fecha_vencimiento) return <span style={{ color: '#d1d5db' }}>—</span>
-        const fecha = new Date(m.fecha_vencimiento)
-        const hoy   = new Date()
-        const diff  = Math.ceil((fecha - hoy) / (1000 * 60 * 60 * 24))
-        const vencido = diff < 0
-        const proximo = diff >= 0 && diff <= 30
-        return (
-          <span style={{
-            fontSize: 12, fontWeight: 500,
-            color: vencido ? '#dc2626' : proximo ? '#d97706' : '#374151',
-          }}>
-            {fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-            {vencido && <span style={{ marginLeft: 4, fontSize: 10, color: '#dc2626' }}>● Vencido</span>}
-            {proximo && <span style={{ marginLeft: 4, fontSize: 10, color: '#d97706' }}>● Próximo</span>}
-          </span>
-        )
-      },
     },
     {
       key: 'codigo_unspsc',
@@ -251,11 +315,29 @@ export function MaterialesPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 90,
+      width: 130,
       render: (m) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"    onClick={() => openEdit(m)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar"  onClick={() => setDeleteTarget(m)}><TrashIcon /></IconButton>}
+          {m.categoria === 'no consumible' && (
+            <IconButton
+              title="Ver unidades"
+              onClick={() => navigate(`/inventario/unidades?material=${m.id}`)}
+              style={{ color: '#2563eb' }}
+            >
+              <AppIcon name="link" size={14} />
+            </IconButton>
+          )}
+          {(m.categoria === 'consumible' || m.categoria === 'perecedero') && (
+            <IconButton
+              title="Ver lotes"
+              onClick={() => navigate(`/inventario/lotes?material=${m.id}`)}
+              style={{ color: '#d97706' }}
+            >
+              <AppIcon name="link" size={14} />
+            </IconButton>
+          )}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(m)}><AppIcon name="edit"  size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(m)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -264,11 +346,14 @@ export function MaterialesPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Materiales" description="Catálogo de materiales del almacén SENA" />
 
+      {/* Tarjetas de filtro */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
-        {CARDS_MAT.map(card => {
+        {CARDS.map(card => {
           const isActive = activeCateg === card.key
           const count    = card.key === null ? materiales.length : countCat(card.key)
           return (
@@ -276,8 +361,9 @@ export function MaterialesPage() {
               key={String(card.key)}
               onClick={() => setActiveCateg(isActive ? null : card.key)}
               style={{
-                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+                flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column',
+                alignItems: 'flex-start', gap: 10, padding: '14px 16px', borderRadius: 12,
+                cursor: 'pointer',
                 border: `1.5px solid ${isActive ? card.color : card.border}`,
                 background: isActive ? card.color : card.bg,
                 transition: 'all 0.18s',
@@ -297,7 +383,6 @@ export function MaterialesPage() {
         })}
       </div>
 
-      {/* ── Tabla ─────────────────────────────────────────────────────────── */}
       <DataTable
         columns={columns}
         data={datosTabla}
@@ -305,33 +390,35 @@ export function MaterialesPage() {
         error={error}
         onRetry={loadData}
         searchable
-        searchPlaceholder="Buscar por nombre, marca, modelo…"
+        searchPlaceholder="Buscar por nombre, marca, tipo…"
         pageSize={10}
         selectable={isAdmin}
         onBulkDelete={isAdmin ? handleBulkDelete : undefined}
         emptyTitle="Sin materiales"
         emptyDescription={activeCateg ? `No hay materiales en la categoría ${cfg(activeCateg).label}.` : 'Agrega el primer material al catálogo.'}
-        emptyAction={
-          <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo material
-          </AppButton>
-        }
+        emptyAction={<AppButton size="compact" onClick={openCreate}><AppIcon name="plus" /> Nuevo material</AppButton>}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
+            {isAdmin && (
+              <AppButton variant="ghost" size="compact" onClick={() => setImportModal(true)}>
+                <AppIcon name="upload" /> Importar
+              </AppButton>
+            )}
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo material
+              <AppIcon name="plus" /> Nuevo material
             </AppButton>
           </>
         }
       />
 
-      {/* ── Modal crear / editar ───────────────────────────────────────────── */}
+      {/* Modal crear / editar */}
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo material' : `Editar — ${modal?.data?.nombre ?? ''}`}
         footer={
           <>
@@ -344,7 +431,7 @@ export function MaterialesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Selector visual de categoría */}
+          {/* Selector de categoría */}
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
               Categoría *
@@ -354,13 +441,12 @@ export function MaterialesPage() {
                 const c   = CATEGORIAS[value]
                 const sel = form.categoria === value
                 return (
-                  <button key={value} type="button" onClick={() => set('categoria', value)} style={{
+                  <button key={value} type="button" onClick={() => resetCondicionales(value)} style={{
                     padding: '10px 8px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
                     border:     `2px solid ${sel ? c.color : c.border}`,
                     background: sel ? c.color : c.bg,
                     color:      sel ? '#fff' : c.color,
-                    fontWeight: 600, fontSize: 12.5, fontFamily: 'inherit',
-                    transition: 'all 0.15s',
+                    fontWeight: 600, fontSize: 12.5, fontFamily: 'inherit', transition: 'all 0.15s',
                   }}>
                     {label}
                   </button>
@@ -369,9 +455,36 @@ export function MaterialesPage() {
             </div>
           </div>
 
-          {/* Campos condicionales por categoría */}
-          {(form.categoria === 'consumible' || form.categoria === 'perecedero') && (
-            <div style={{ display: 'flex', gap: 14 }}>
+          {/* Nombre + Tipo */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Nombre" required>
+              <AppInput size="sm" value={form.nombre} placeholder="Ej. Computador portátil, Carne de res"
+                onChange={e => set('nombre', e.target.value)} />
+            </FormField>
+            <FormField label="Tipo" required>
+              <AppInput size="sm" value={form.tipo} placeholder="Ej. Laptop, Herramienta, Insumo"
+                onChange={e => set('tipo', e.target.value)} />
+            </FormField>
+          </div>
+
+          {/* Marca — visible para todos, requerida solo para no consumible */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Marca" required={esNoConsumible(form.categoria)}>
+              <AppInput size="sm" value={form.marca}
+                placeholder={esNoConsumible(form.categoria) ? 'Ej. HP, Lenovo, Bosch' : 'Ej. FrigoCarnes (opcional)'}
+                onChange={e => set('marca', e.target.value)} />
+            </FormField>
+
+            {/* Modelo — solo para no consumible */}
+            {esNoConsumible(form.categoria) && (
+              <FormField label="Modelo" required>
+                <AppInput size="sm" value={form.modelo} placeholder="Ej. ProBook 440 G9"
+                  onChange={e => set('modelo', e.target.value)} />
+              </FormField>
+            )}
+
+            {/* Unidad de medida — solo para consumible y perecedero */}
+            {esConsumibleOPerecedero(form.categoria) && (
               <FormField label="Unidad de medida" required>
                 <AppSelect size="sm" value={form.unidad_medida} onChange={e => set('unidad_medida', e.target.value)}>
                   <option value="">— Seleccionar —</option>
@@ -380,52 +493,14 @@ export function MaterialesPage() {
                   ))}
                 </AppSelect>
               </FormField>
-              {form.categoria === 'perecedero' && (
-                <FormField label="Fecha de vencimiento" required>
-                  <AppInput
-                    size="sm"
-                    type="date"
-                    value={form.fecha_vencimiento}
-                    onChange={e => set('fecha_vencimiento', e.target.value)}
-                  />
-                </FormField>
-              )}
-            </div>
-          )}
-
-          {/* Fila: nombre + ficha */}
-          <div style={{ display: 'flex', gap: 14 }}>
-            <FormField label="Nombre" required>
-              <AppInput size="sm" value={form.nombre} placeholder="Ej. Computador portátil"
-                onChange={e => set('nombre', e.target.value)} />
-            </FormField>
-            <FormField label="Ficha" required>
-              <AppSelect size="sm" value={form.id_ficha} onChange={e => set('id_ficha', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {fichas.map(f => (
-                  <option key={f.id_ficha} value={f.id_ficha}>Ficha {f.codigo_ficha}</option>
-                ))}
-              </AppSelect>
-            </FormField>
+            )}
           </div>
 
-          {/* Fila: marca + modelo */}
+          {/* Descripción + Código UNSPSC */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <FormField label="Marca" required>
-              <AppInput size="sm" value={form.marca} placeholder="Ej. HP, Lenovo, Bosch"
-                onChange={e => set('marca', e.target.value)} />
-            </FormField>
-            <FormField label="Modelo" required>
-              <AppInput size="sm" value={form.modelo} placeholder="Ej. 240 G9"
-                onChange={e => set('modelo', e.target.value)} />
-            </FormField>
-          </div>
-
-          {/* Fila: tipo + código UNSPSC */}
-          <div style={{ display: 'flex', gap: 14 }}>
-            <FormField label="Tipo" required>
-              <AppInput size="sm" value={form.tipo} placeholder="Ej. Laptop, Herramienta, Insumo"
-                onChange={e => set('tipo', e.target.value)} />
+            <FormField label="Descripción" required>
+              <AppInput size="sm" value={form.descripcion} placeholder="Descripción del material"
+                onChange={e => set('descripcion', e.target.value)} />
             </FormField>
             <FormField label="Código UNSPSC" required>
               <AppInput size="sm" value={form.codigo_unspsc} placeholder="Ej. 43211503"
@@ -433,16 +508,156 @@ export function MaterialesPage() {
             </FormField>
           </div>
 
-          <FormField label="Descripción" required>
-            <AppInput size="sm" value={form.descripcion} placeholder="Descripción detallada del material"
-              onChange={e => set('descripcion', e.target.value)} />
-          </FormField>
-
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
-      {/* ── Confirmar eliminación ──────────────────────────────────────────── */}
+      {/* Modal importar */}
+      <AppModal
+        isOpen={importModal}
+        onClose={closeImport}
+        maxWidth={720}
+        title="Importar materiales"
+        footer={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AppButton variant="ghost" size="compact" onClick={descargarPlantilla}>
+              <AppIcon name="printer" size={13} /> Descargar plantilla
+            </AppButton>
+            <div style={{ flex: 1 }} />
+            <AppButton variant="ghost" size="compact" onClick={closeImport}>Cancelar</AppButton>
+            {importRows.length > 0 && !importResult && (
+              <AppButton size="compact" onClick={handleImportar} loading={importing}>
+                <AppIcon name="upload" size={13} /> Importar {importRows.length} materiales
+              </AppButton>
+            )}
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Resultado */}
+          {importResult && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{
+                background: importResult.exitosos > 0 ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${importResult.exitosos > 0 ? '#bbf7d0' : '#fecaca'}`,
+                borderRadius: 8, padding: '12px 16px',
+                color: importResult.exitosos > 0 ? '#166534' : '#991b1b', fontSize: 14, fontWeight: 600,
+              }}>
+                {importResult.exitosos} material(es) importado(s) correctamente
+                {importResult.errores.length > 0 && ` · ${importResult.errores.length} con error`}
+              </div>
+              {importResult.errores.length > 0 && (
+                <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                  {importResult.errores.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: '#dc2626', padding: '3px 0' }}>
+                      Fila {e.fila}: {e.error}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <AppButton variant="ghost" size="compact" style={{ alignSelf: 'flex-start' }}
+                onClick={() => { setImportRows([]); setImportResult(null); setImportError(null) }}>
+                Importar otro archivo
+              </AppButton>
+            </div>
+          )}
+
+          {!importResult && (
+            <>
+              {/* Zona de carga */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: '2px dashed #d1d5db', borderRadius: 10, padding: '28px 20px',
+                  textAlign: 'center', cursor: 'pointer', background: '#fafafa',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#39A900'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#d1d5db'}
+              >
+                <AppIcon name="upload" size={28} style={{ color: '#9ca3af', marginBottom: 8 }} />
+                <div style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>
+                  Haz clic para seleccionar un archivo
+                </div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+                  Formatos aceptados: .xlsx, .xls, .csv
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              {/* Columnas requeridas */}
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>
+                  Columnas requeridas en el archivo
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['nombre *','categoria *','tipo *','marca','modelo','descripcion *','codigo_unspsc *','unidad_medida'].map(col => (
+                    <code key={col} style={{
+                      fontSize: 11, background: col.includes('*') ? '#dcfce7' : '#f3f4f6',
+                      color: col.includes('*') ? '#166534' : '#374151',
+                      padding: '2px 8px', borderRadius: 5,
+                    }}>{col}</code>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
+                  categoria: <code>consumible</code> | <code>no consumible</code> | <code>perecedero</code>
+                </div>
+              </div>
+
+              {importError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#991b1b' }}>
+                  {importError}
+                </div>
+              )}
+
+              {/* Preview */}
+              {importRows.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+                    Vista previa — {importRows.length} fila(s) detectadas
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#39A900' }}>
+                          {['nombre','categoria','tipo','marca','modelo','unidad_medida'].map(col => (
+                            <th key={col} style={{ padding: '6px 10px', color: '#fff', fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importRows.slice(0, 6).map((row, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#f9fafb' : '#fff' }}>
+                            {['nombre','categoria','tipo','marca','modelo','unidad_medida'].map(col => (
+                              <td key={col} style={{ padding: '5px 10px', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                                {row[col] ?? '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importRows.length > 6 && (
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, textAlign: 'right' }}>
+                      + {importRows.length - 6} fila(s) más
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </AppModal>
+
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Eliminar material"
@@ -457,5 +672,6 @@ export function MaterialesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

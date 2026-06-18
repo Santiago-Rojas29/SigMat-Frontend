@@ -1,32 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const CATEGORIAS_MAT = {
   'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
   'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
@@ -61,7 +50,7 @@ const EMPTY_FORM = {
   id_material: '', id_responsable: '', id_ubicacion: '',
   codigo_lote: '', cantidad_inicial: '', cantidad_disponible: '',
   unidad_medida: 'unidad', fecha_entrada: hoy(),
-  fecha_ingreso: '', fecha_vencimiento: '', estado: 'vigente',
+  fecha_vencimiento: '', estado: 'vigente',
 }
 
 
@@ -97,11 +86,18 @@ function CatBadge({ categoria }) {
 export function LotesPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const [searchParams] = useSearchParams()
+  const navigate         = useNavigate()
+  const materialFiltroId  = searchParams.get('material')
+  const ubicacionFiltroId = searchParams.get('ubicacion')
 
   const [lotes,       setLotes]       = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
+  const [fichas,      setFichas]      = useState([])
+  const [loteFichas,  setLoteFichas]  = useState([])
+  const [tipos,       setTipos]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -109,28 +105,49 @@ export function LotesPage() {
   const [modal,        setModal]        = useState(null)
   const [form,         setForm]         = useState(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
+
+  const [fichaModal,    setFichaModal]    = useState(null)
+  const [fichaForm,     setFichaForm]     = useState({ id_ficha: '', cantidad: '' })
+  const [fichaEditId,   setFichaEditId]   = useState(null)
+  const [fichaSaving,   setFichaSaving]   = useState(false)
+  const [fichaDeleting, setFichaDeleting] = useState(null)
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [lRes, mRes, uRes, ubRes] = await Promise.all([
+      const [lRes, mRes, uRes, ubRes, fRes, lfRes, tRes] = await Promise.all([
         api.get('/lote'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
+        api.get('/ficha'),
+        api.get('/lote-ficha'),
+        api.get('/tipo-ubicacion'),
       ])
       setLotes(lRes.data)
       setMateriales(mRes.data)
       setUsuarios(uRes.data)
       setUbicaciones(ubRes.data)
+      setFichas(fRes.data)
+      setLoteFichas(lfRes.data)
+      setTipos(tRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const bodegaUbicacionIds = useMemo(() => {
+    const bodegaTipoIds = new Set(
+      tipos.filter(t => t.nombre?.toLowerCase() === 'bodega').map(t => String(t.id_tipo_ubicacion))
+    )
+    return new Set(
+      ubicaciones.filter(u => bodegaTipoIds.has(String(u.id_tipo_ubicacion))).map(u => String(u.id_ubicacion))
+    )
+  }, [tipos, ubicaciones])
 
   const lotesRicos = useMemo(() => lotes.map(l => ({
     ...l,
@@ -147,14 +164,29 @@ export function LotesPage() {
     vencido:    lotesRicos.filter(l => l.estado === 'vencido').length,
   }), [lotesRicos])
 
+  const materialFiltro = useMemo(
+    () => materiales.find(m => m.id === materialFiltroId) ?? null,
+    [materiales, materialFiltroId]
+  )
+
+  const ubicacionFiltro = useMemo(
+    () => ubicaciones.find(u => String(u.id_ubicacion) === ubicacionFiltroId) ?? null,
+    [ubicaciones, ubicacionFiltroId]
+  )
+
   const datosTabla = useMemo(() => {
-    if (!filtro) return lotesRicos
-    if (filtro === 'consumible') return lotesRicos.filter(l => l._material?.categoria === 'consumible')
-    if (filtro === 'perecedero') return lotesRicos.filter(l => l._material?.categoria === 'perecedero')
-    if (filtro === 'proximo')    return lotesRicos.filter(l => l.estado === 'proximo a vencer')
-    if (filtro === 'vencido')    return lotesRicos.filter(l => l.estado === 'vencido')
-    return lotesRicos
-  }, [lotesRicos, filtro])
+    let base = materialFiltroId
+      ? lotesRicos.filter(l => l.id_material === materialFiltroId)
+      : ubicacionFiltroId
+        ? lotesRicos.filter(l => String(l.id_ubicacion) === ubicacionFiltroId)
+        : lotesRicos
+    if (!filtro) return base
+    if (filtro === 'consumible') return base.filter(l => l._material?.categoria === 'consumible')
+    if (filtro === 'perecedero') return base.filter(l => l._material?.categoria === 'perecedero')
+    if (filtro === 'proximo')    return base.filter(l => l.estado === 'proximo a vencer')
+    if (filtro === 'vencido')    return base.filter(l => l.estado === 'vencido')
+    return base
+  }, [lotesRicos, filtro, materialFiltroId, ubicacionFiltroId])
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const matSeleccionado  = materiales.find(m => m.id === form.id_material)
@@ -164,7 +196,6 @@ export function LotesPage() {
   const openCreate = () => {
     const primerMat = materialesValidos[0]
     setForm({ ...EMPTY_FORM, id_material: primerMat?.id ?? '', id_responsable: usuarios[0]?.id ?? '', id_ubicacion: String(ubicaciones[0]?.id_ubicacion ?? '') })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -178,18 +209,16 @@ export function LotesPage() {
       cantidad_disponible: l.cantidad_disponible,
       unidad_medida:       l.unidad_medida,
       fecha_entrada:       l.fecha_entrada?.split('T')[0] ?? hoy(),
-      fecha_ingreso:       l.fecha_ingreso?.split('T')[0] ?? '',
       fecha_vencimiento:   l.fecha_vencimiento?.split('T')[0] ?? '',
       estado:              l.estado ?? 'vigente',
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: l })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
-    setSaving(true); setFormError(null)
+    setSaving(true)
     try {
       const payload = {
         id_material:         form.id_material,
@@ -200,16 +229,21 @@ export function LotesPage() {
         cantidad_disponible: Number(form.cantidad_disponible),
         unidad_medida:       form.unidad_medida,
         fecha_entrada:       form.fecha_entrada,
+        ...(esPerecedero && form.fecha_ingreso     && { fecha_ingreso:     form.fecha_ingreso }),
+        ...(esPerecedero && form.fecha_vencimiento && { fecha_vencimiento: form.fecha_vencimiento }),
+        ...(esPerecedero && { estado: form.estado }),
       }
       if (modal.mode === 'create') {
         await api.post('/lote', payload)
+        showToast('success', 'Lote creado correctamente.')
       } else {
         await api.patch(`/lote/${modal.data.id_lote}`, payload)
+        showToast('success', 'Lote actualizado correctamente.')
       }
       closeModal(); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
 
@@ -217,16 +251,68 @@ export function LotesPage() {
     setDeleting(true)
     try {
       await api.delete(`/lote/${deleteTarget.id_lote}`)
+      showToast('success', 'Lote eliminado correctamente.')
       setDeleteTarget(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
   }
 
   const handleBulkDelete = async (ids) => {
     await Promise.all(ids.map(id => api.delete(`/lote/${id}`)))
     loadData()
+  }
+
+  const openFichaModal = (lote) => {
+    setFichaModal(lote)
+    setFichaForm({ id_ficha: '', cantidad: '' })
+    setFichaEditId(null)
+  }
+
+  const fichasDelLote = useMemo(() =>
+    fichaModal ? loteFichas.filter(lf => lf.id_lote === fichaModal.id_lote) : [],
+    [fichaModal, loteFichas]
+  )
+
+  const fichasDisponibles = useMemo(() =>
+    fichas.filter(f => !fichasDelLote.some(lf => lf.id_ficha === f.id_ficha && lf.id !== fichaEditId)),
+    [fichas, fichasDelLote, fichaEditId]
+  )
+
+  const handleFichaGuardar = async () => {
+    if (!fichaForm.id_ficha || !fichaForm.cantidad) { showToast('error', 'Selecciona una ficha e ingresa la cantidad.'); return }
+    setFichaSaving(true)
+    try {
+      if (fichaEditId) {
+        await api.patch(`/lote-ficha/${fichaEditId}`, { cantidad: Number(fichaForm.cantidad) })
+      } else {
+        await api.post('/lote-ficha', { id_lote: fichaModal.id_lote, id_ficha: fichaForm.id_ficha, cantidad: Number(fichaForm.cantidad) })
+      }
+      const lfRes = await api.get('/lote-ficha')
+      setLoteFichas(lfRes.data)
+      setFichaForm({ id_ficha: '', cantidad: '' })
+      setFichaEditId(null)
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+    } finally { setFichaSaving(false) }
+  }
+
+  const handleFichaEliminar = async (id) => {
+    setFichaDeleting(id)
+    try {
+      await api.delete(`/lote-ficha/${id}`)
+      setLoteFichas(prev => prev.filter(lf => lf.id !== id))
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+    } finally { setFichaDeleting(null) }
+  }
+
+  const handleFichaEditar = (lf) => {
+    setFichaEditId(lf.id)
+    setFichaForm({ id_ficha: lf.id_ficha, cantidad: String(lf.cantidad) })
   }
 
   const columns = [
@@ -312,8 +398,14 @@ export function LotesPage() {
       width: 90,
       render: (l) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><TrashIcon /></IconButton>}
+          {bodegaUbicacionIds.has(String(l.id_ubicacion)) && (
+            <IconButton title="Gestionar fichas" onClick={() => openFichaModal(l)}
+              style={{ color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+              <AppIcon name="clipboard" size={15} />
+            </IconButton>
+          )}
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -348,8 +440,54 @@ export function LotesPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Lotes" description="Gestión de lotes de consumibles y perecederos" />
+
+      {materialFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#fffbeb', border: '1px solid #fde68a',
+        }}>
+          <span style={{ fontSize: 13, color: '#92400e' }}>
+            Mostrando lotes de: <strong>{materialFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/lotes')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#d97706', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todos
+          </button>
+        </div>
+      )}
+
+      {ubicacionFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#f5f3ff', border: '1px solid #ddd6fe',
+        }}>
+          <span style={{ fontSize: 13, color: '#5b21b6' }}>
+            Ubicación: <strong>{ubicacionFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/lotes')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#7c3aed', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todos
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {cards.map(card => {
@@ -396,16 +534,16 @@ export function LotesPage() {
         emptyDescription="Registra el primer lote de consumibles o perecederos."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo lote
+            <AppIcon name="plus" /> Nuevo lote
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo lote
+              <AppIcon name="plus" /> Nuevo lote
             </AppButton>
           </>
         }
@@ -414,6 +552,7 @@ export function LotesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo lote' : `Editar lote — ${modal?.data?.codigo_lote ?? ''}`}
         footer={
           <>
@@ -426,24 +565,25 @@ export function LotesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Material" required>
-            <AppSelect size="sm" value={form.id_material}
-              onChange={e => {
-                const mat = materiales.find(m => m.id === e.target.value)
+            <SearchableSelect
+              size="sm"
+              value={form.id_material}
+              placeholder="— Seleccionar material —"
+              options={materialesValidos.map(m => ({
+                value: m.id,
+                label: `${m.nombre} (${CATEGORIAS_MAT[m.categoria]?.label ?? m.categoria})`,
+              }))}
+              onChange={v => {
+                const mat = materiales.find(m => m.id === v)
                 setForm(p => ({
                   ...p,
-                  id_material:      e.target.value,
-                  fecha_ingreso:    mat?.categoria !== 'perecedero' ? '' : p.fecha_ingreso,
-                  fecha_vencimiento:mat?.categoria !== 'perecedero' ? '' : p.fecha_vencimiento,
-                  estado:           mat?.categoria !== 'perecedero' ? 'vigente' : p.estado,
+                  id_material:       v,
+                  unidad_medida:     mat?.unidad_medida ?? p.unidad_medida,
+                  fecha_vencimiento: mat?.categoria !== 'perecedero' ? '' : p.fecha_vencimiento,
+                  estado:            mat?.categoria !== 'perecedero' ? 'vigente' : p.estado,
                 }))
-              }}>
-              <option value="">— Seleccionar material —</option>
-              {materialesValidos.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.nombre} ({CATEGORIAS_MAT[m.categoria]?.label ?? m.categoria})
-                </option>
-              ))}
-            </AppSelect>
+              }}
+            />
           </FormField>
 
           {matSeleccionado && (
@@ -465,10 +605,13 @@ export function LotesPage() {
               <AppInput size="sm" value={form.codigo_lote} placeholder="Ej. LOT-2024-001"
                 onChange={e => set('codigo_lote', e.target.value)} />
             </FormField>
-            <FormField label="Unidad de medida" required>
-              <AppSelect size="sm" value={form.unidad_medida} onChange={e => set('unidad_medida', e.target.value)}>
-                {UNIDADES.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-              </AppSelect>
+            <FormField label="Unidad de medida">
+              <AppInput
+                size="sm"
+                value={form.unidad_medida || '—'}
+                disabled
+                style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }}
+              />
             </FormField>
           </div>
 
@@ -492,25 +635,27 @@ export function LotesPage() {
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
-              <AppSelect size="sm" value={form.id_responsable} onChange={e => set('id_responsable', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_responsable}
+                placeholder="— Seleccionar —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => set('id_responsable', v)}
+              />
             </FormField>
             <FormField label="Ubicación" required>
-              <AppSelect size="sm" value={form.id_ubicacion} onChange={e => set('id_ubicacion', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {ubicaciones.map(u => (
-                  <option key={u.id_ubicacion} value={u.id_ubicacion}>{u.nombre}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_ubicacion}
+                placeholder="— Seleccionar —"
+                options={ubicaciones.map(u => ({ value: u.id_ubicacion, label: u.nombre }))}
+                onChange={v => set('id_ubicacion', v)}
+              />
             </FormField>
           </div>
 
           <FormField label="Fecha de entrada" required>
-            <AppInput size="sm" type="date" value={form.fecha_entrada}
+            <AppDateInput size="sm" value={form.fecha_entrada}
               onChange={e => set('fecha_entrada', e.target.value)} />
           </FormField>
 
@@ -524,24 +669,108 @@ export function LotesPage() {
                 Datos de perecedero
               </p>
               <div style={{ display: 'flex', gap: 14 }}>
-                <FormField label="Fecha de ingreso" required>
-                  <AppInput size="sm" type="date" value={form.fecha_ingreso}
-                    onChange={e => set('fecha_ingreso', e.target.value)} />
-                </FormField>
                 <FormField label="Fecha de vencimiento" required>
-                  <AppInput size="sm" type="date" value={form.fecha_vencimiento}
+                  <AppDateInput size="sm" value={form.fecha_vencimiento}
+                    min={form.fecha_entrada || undefined}
                     onChange={e => set('fecha_vencimiento', e.target.value)} />
                 </FormField>
+                <FormField label="Estado del lote" required>
+                  <AppSelect size="sm" value={form.estado} onChange={e => set('estado', e.target.value)}>
+                    {ESTADOS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </AppSelect>
+                </FormField>
               </div>
-              <FormField label="Estado del lote" required>
-                <AppSelect size="sm" value={form.estado} onChange={e => set('estado', e.target.value)}>
-                  {ESTADOS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </AppSelect>
-              </FormField>
             </div>
           )}
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+        </div>
+      </AppModal>
+
+      <AppModal
+        isOpen={!!fichaModal}
+        onClose={() => { setFichaModal(null); setFichaEditId(null) }}
+        maxWidth={640}
+        title={`Fichas asignadas — ${fichaModal?.codigo_lote ?? ''}`}
+        footer={
+          <AppButton variant="ghost" size="compact" onClick={() => { setFichaModal(null); setFichaEditId(null) }}>
+            Cerrar
+          </AppButton>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {fichasDelLote.length === 0 ? (
+            <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+              Este lote no tiene fichas asignadas aún.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {fichasDelLote.map(lf => {
+                const ficha = fichas.find(f => f.id_ficha === lf.id_ficha)
+                const isEditing = fichaEditId === lf.id
+                return (
+                  <div key={lf.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: isEditing ? '#eff6ff' : '#f9fafb',
+                    border: `1px solid ${isEditing ? '#bfdbfe' : '#e5e7eb'}`,
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13.5, color: '#111827' }}>
+                        {ficha?.codigo_ficha ?? lf.id_ficha}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        Cantidad asignada: <strong>{lf.cantidad}</strong>
+                      </div>
+                    </div>
+                    <IconButton title="Editar cantidad" onClick={() => handleFichaEditar(lf)}
+                      style={{ color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                      <AppIcon name="edit" size={15} />
+                    </IconButton>
+                    <IconButton title="Quitar ficha" onClick={() => handleFichaEliminar(lf.id)}
+                      disabled={fichaDeleting === lf.id}
+                      style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <AppIcon name="trash" size={15} />
+                    </IconButton>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              {fichaEditId ? 'Editar cantidad' : 'Asignar nueva ficha'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              {!fichaEditId && (
+                <FormField label="Ficha" style={{ flex: 2 }}>
+                  <SearchableSelect
+                    size="sm"
+                    value={fichaForm.id_ficha}
+                    placeholder="— Seleccionar ficha —"
+                    options={fichasDisponibles.map(f => ({ value: f.id_ficha, label: f.codigo_ficha }))}
+                    onChange={v => setFichaForm(p => ({ ...p, id_ficha: v }))}
+                  />
+                </FormField>
+              )}
+              <FormField label="Cantidad" style={{ flex: 1 }}>
+                <AppInput size="sm" type="number" min="1" value={fichaForm.cantidad}
+                  placeholder="Ej. 30"
+                  onChange={e => setFichaForm(p => ({ ...p, cantidad: e.target.value }))} />
+              </FormField>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 1 }}>
+                <AppButton size="compact" onClick={handleFichaGuardar} loading={fichaSaving}>
+                  {fichaEditId ? 'Actualizar' : 'Asignar'}
+                </AppButton>
+                {fichaEditId && (
+                  <AppButton variant="ghost" size="compact"
+                    onClick={() => { setFichaEditId(null); setFichaForm({ id_ficha: '', cantidad: '' }) }}>
+                    Cancelar
+                  </AppButton>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </AppModal>
 
@@ -559,5 +788,6 @@ export function LotesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

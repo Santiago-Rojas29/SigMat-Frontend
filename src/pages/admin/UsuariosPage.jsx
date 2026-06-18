@@ -3,34 +3,16 @@ import api from '../../services/api'
 import { AppButton }             from '../../components/atoms/AppButton'
 import { AppInput }              from '../../components/atoms/AppInput'
 import { AppSelect }             from '../../components/atoms/AppSelect'
+import { SearchableSelect }      from '../../components/atoms/SearchableSelect'
 import { Badge }                 from '../../components/atoms/Badge'
 import { IconButton }            from '../../components/atoms/IconButton'
 import { FormField }             from '../../components/molecules/FormField'
 import { PageHeader }            from '../../components/molecules/PageHeader'
-import { AlertBanner }           from '../../components/molecules/AlertBanner'
+import { useToast }              from '../../hooks/useToast'
 import { ConfirmDialog }         from '../../components/molecules/ConfirmDialog'
 import { AppModal }              from '../../components/organisms/AppModal'
 import { DataTable }             from '../../components/organisms/DataTable'
-import { PermisosUsuarioModal }  from '../../components/organisms/PermisosUsuarioModal'
-
-// ── Icons ────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-const EyeIcon     = () => <Ic size={16}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></Ic>
-const EyeOffIcon  = () => <Ic size={16}><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></Ic>
-const ShieldIcon  = () => <Ic size={15}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Ic>
+import { AppIcon }               from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -54,19 +36,18 @@ const EMPTY_FORM = {
 export function UsuariosPage() {
   const [usuarios, setUsuarios] = useState([])
   const [roles,    setRoles]    = useState([])
-  const [permisos, setPermisos] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [modal,     setModal]     = useState(null)  // null | { mode: 'create'|'edit', data? }
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
   const [showPass,  setShowPass]  = useState(false)
 
-  const [deleteTarget,   setDeleteTarget]   = useState(null)
-  const [deleting,       setDeleting]       = useState(false)
-  const [permisosTarget, setPermisosTarget] = useState(null)  // usuario seleccionado para permisos
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -74,14 +55,12 @@ export function UsuariosPage() {
     setLoading(true)
     setError(null)
     try {
-      const [uRes, rRes, pRes] = await Promise.all([
+      const [uRes, rRes] = await Promise.all([
         api.get('/usuario'),
         api.get('/rol'),
-        api.get('/permisos'),
       ])
       setUsuarios(uRes.data)
       setRoles(rRes.data)
-      setPermisos(pRes.data)
     } catch {
       setError('No se pudo cargar la información. Verifica tu conexión.')
     } finally {
@@ -100,7 +79,6 @@ export function UsuariosPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, id_rol: roles[0]?.id ?? '' })
-    setFormError(null)
     setShowPass(false)
     setModal({ mode: 'create' })
   }
@@ -112,29 +90,29 @@ export function UsuariosPage() {
       apellidos: u.apellidos, correo: u.correo,
       telefono: u.telefono, estado: u.estado, contrasena: '',
     })
-    setFormError(null)
     setShowPass(false)
     setModal({ mode: 'edit', data: u })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     setSaving(true)
-    setFormError(null)
     try {
       const payload = { ...form }
       if (modal.mode === 'edit' && !payload.contrasena) delete payload.contrasena
       if (modal.mode === 'create') {
         await api.post('/usuario', payload)
+        showToast('success', 'Usuario creado correctamente.')
       } else {
         await api.patch(`/usuario/${modal.data.id}`, payload)
+        showToast('success', 'Usuario actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -144,11 +122,12 @@ export function UsuariosPage() {
     setDeleting(true)
     try {
       await api.delete(`/usuario/${deleteTarget.id}`)
+      showToast('success', 'Usuario eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -211,21 +190,14 @@ export function UsuariosPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 110,
+      width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton
-            title="Gestionar permisos"
-            onClick={() => setPermisosTarget(u)}
-            style={{ color: '#7c3aed' }}
-          >
-            <ShieldIcon />
-          </IconButton>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -235,10 +207,12 @@ export function UsuariosPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Usuarios"
-        description="Gestión de cuentas, roles y permisos del sistema"
+        description="Gestión de cuentas y roles. Los permisos se configuran por rol en el módulo de Roles."
       />
 
       <DataTable
@@ -256,16 +230,16 @@ export function UsuariosPage() {
         emptyDescription="Crea el primer usuario del sistema."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo usuario
+            <AppIcon name="plus" /> Nuevo usuario
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo usuario
+              <AppIcon name="plus" /> Nuevo usuario
             </AppButton>
           </>
         }
@@ -275,6 +249,7 @@ export function UsuariosPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo usuario' : 'Editar usuario'}
         footer={
           <>
@@ -327,10 +302,13 @@ export function UsuariosPage() {
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Rol" required>
-              <AppSelect size="sm" value={form.id_rol}
-                onChange={e => set('id_rol', e.target.value)}>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_rol}
+                placeholder="— Seleccionar rol —"
+                options={roles.map(r => ({ value: r.id, label: r.nombre }))}
+                onChange={v => set('id_rol', v)}
+              />
             </FormField>
             <FormField label="Estado" required>
               <AppSelect size="sm" value={form.estado}
@@ -353,22 +331,13 @@ export function UsuariosPage() {
               value={form.contrasena}
               placeholder={modal?.mode === 'edit' ? 'Sin cambios' : 'Mínimo 8 caracteres'}
               onChange={e => set('contrasena', e.target.value)}
-              rightIcon={showPass ? <EyeOffIcon /> : <EyeIcon />}
+              rightIcon={showPass ? <AppIcon name="eye-off" size={16} /> : <AppIcon name="eye" size={15} />}
               onRightIconClick={() => setShowPass(p => !p)}
             />
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
-
-      {/* Modal de permisos del usuario */}
-      <PermisosUsuarioModal
-        isOpen={!!permisosTarget}
-        onClose={() => setPermisosTarget(null)}
-        usuario={permisosTarget}
-        permisos={permisos}
-      />
 
       {/* Confirmar eliminación */}
       <ConfirmDialog
@@ -385,5 +354,6 @@ export function UsuariosPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

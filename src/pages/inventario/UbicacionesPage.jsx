@@ -1,32 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
-
+import { AppIcon }        from '../../components/atoms/AppIcon'
 const PALETA = [
   { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
   { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', paths: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
@@ -39,11 +27,13 @@ const PALETA = [
 
 export function UbicacionesPage() {
   const { hasPermission } = usePermissions()
-  const isAdmin = hasPermission('administracion')
+  const isAdmin  = hasPermission('administracion')
+  const navigate = useNavigate()
 
   const [tipos,       setTipos]       = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [areas,       setAreas]       = useState([])
+  const [usuarios,    setUsuarios]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -51,28 +41,29 @@ export function UbicacionesPage() {
   const [tipoModal,  setTipoModal]  = useState(null)
   const [tipoForm,   setTipoForm]   = useState({ nombre: '', descripcion: '' })
   const [tipoSaving, setTipoSaving] = useState(false)
-  const [tipoError,  setTipoError]  = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTipo, setDeleteTipo] = useState(null)
   const [delTipo,    setDelTipo]    = useState(false)
 
   const [ubModal,  setUbModal]  = useState(null)
-  const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo' })
+  const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo', id_encargado: '' })
   const [ubSaving, setUbSaving] = useState(false)
-  const [ubError,  setUbError]  = useState(null)
   const [deleteUb, setDeleteUb] = useState(null)
   const [delUb,    setDelUb]    = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [tRes, uRes, aRes] = await Promise.all([
+      const [tRes, uRes, aRes, usRes] = await Promise.all([
         api.get('/tipo-ubicacion'),
         api.get('/ubicacion'),
         api.get('/area'),
+        api.get('/usuario'),
       ])
       setTipos(tRes.data)
       setUbicaciones(uRes.data)
       setAreas(aRes.data)
+      setUsuarios(usRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -81,10 +72,11 @@ export function UbicacionesPage() {
 
   const ubicacionesRicas = useMemo(() => ubicaciones.map(u => ({
     ...u,
-    _tipo: tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion)),
-    _area: areas.find(a => String(a.id_area) === String(u.id_area)),
-    _paleta: PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
-  })), [ubicaciones, tipos, areas])
+    _tipo:      tipos.find(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion)),
+    _area:      areas.find(a => String(a.id_area) === String(u.id_area)),
+    _encargado: usuarios.find(us => us.id === u.id_encargado) ?? null,
+    _paleta:    PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
+  })), [ubicaciones, tipos, areas, usuarios])
 
   const cards = useMemo(() => [
     {
@@ -113,30 +105,30 @@ export function UbicacionesPage() {
 
   const openCrearTipo = () => {
     setTipoForm({ nombre: '', descripcion: '' })
-    setTipoError(null)
     setTipoModal({ mode: 'create' })
   }
 
   const openEditTipo = (t) => {
     setTipoForm({ nombre: t.nombre, descripcion: t.descripcion })
-    setTipoError(null)
     setTipoModal({ mode: 'edit', data: t })
   }
 
   const handleSaveTipo = async () => {
-    if (!tipoForm.nombre.trim())      { setTipoError('El nombre es obligatorio.'); return }
-    if (!tipoForm.descripcion.trim()) { setTipoError('La descripción es obligatoria.'); return }
-    setTipoSaving(true); setTipoError(null)
+    if (!tipoForm.nombre.trim())      { showToast('error', 'El nombre es obligatorio.'); return }
+    if (!tipoForm.descripcion.trim()) { showToast('error', 'La descripción es obligatoria.'); return }
+    setTipoSaving(true)
     try {
       if (tipoModal.mode === 'create') {
         await api.post('/tipo-ubicacion', tipoForm)
+        showToast('success', 'Tipo de ubicación creado correctamente.')
       } else {
         await api.patch(`/tipo-ubicacion/${tipoModal.data.id_tipo_ubicacion}`, tipoForm)
+        showToast('success', 'Tipo de ubicación actualizado correctamente.')
       }
       setTipoModal(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setTipoError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setTipoSaving(false) }
   }
 
@@ -144,43 +136,49 @@ export function UbicacionesPage() {
     setDelTipo(true)
     try {
       await api.delete(`/tipo-ubicacion/${deleteTipo.id_tipo_ubicacion}`)
+      showToast('success', 'Tipo de ubicación eliminado correctamente.')
       setDeleteTipo(null)
       if (filtro === String(deleteTipo.id_tipo_ubicacion)) setFiltro(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setTipoError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelTipo(false) }
   }
 
   const openCrearUb = () => {
-    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? '') })
-    setUbError(null)
+    setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? ''), id_encargado: '' })
     setUbModal({ mode: 'create' })
   }
 
   const openEditUb = (u) => {
-    setUbForm({ nombre: u.nombre, descripcion: u.descripcion, estado: u.estado, id_tipo_ubicacion: String(u.id_tipo_ubicacion), id_area: String(u.id_area) })
-    setUbError(null)
+    setUbForm({ nombre: u.nombre, descripcion: u.descripcion, estado: u.estado, id_tipo_ubicacion: String(u.id_tipo_ubicacion), id_area: String(u.id_area), id_encargado: u.id_encargado ?? '' })
     setUbModal({ mode: 'edit', data: u })
   }
 
   const handleSaveUb = async () => {
-    if (!ubForm.nombre.trim())     { setUbError('El nombre es obligatorio.'); return }
-    if (!ubForm.id_tipo_ubicacion) { setUbError('Selecciona un tipo.'); return }
-    if (!ubForm.id_area)           { setUbError('Selecciona un área.'); return }
-    setUbSaving(true); setUbError(null)
-    const payload = { ...ubForm, id_area: String(ubForm.id_area), id_tipo_ubicacion: String(ubForm.id_tipo_ubicacion) }
+    if (!ubForm.nombre.trim())     { showToast('error', 'El nombre es obligatorio.'); return }
+    if (!ubForm.id_tipo_ubicacion) { showToast('error', 'Selecciona un tipo.'); return }
+    if (!ubForm.id_area)           { showToast('error', 'Selecciona un área.'); return }
+    setUbSaving(true)
+    const payload = {
+      ...ubForm,
+      id_area:           String(ubForm.id_area),
+      id_tipo_ubicacion: String(ubForm.id_tipo_ubicacion),
+      id_encargado:      ubForm.id_encargado || null,
+    }
     try {
       if (ubModal.mode === 'create') {
         await api.post('/ubicacion', payload)
+        showToast('success', 'Ubicación creada correctamente.')
       } else {
         await api.patch(`/ubicacion/${ubModal.data.id_ubicacion}`, payload)
+        showToast('success', 'Ubicación actualizada correctamente.')
       }
       setUbModal(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setUbError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setUbSaving(false) }
   }
 
@@ -188,10 +186,11 @@ export function UbicacionesPage() {
     setDelUb(true)
     try {
       await api.delete(`/ubicacion/${deleteUb.id_ubicacion}`)
+      showToast('success', 'Ubicación eliminada correctamente.')
       setDeleteUb(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setUbError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelUb(false) }
   }
 
@@ -226,13 +225,11 @@ export function UbicacionesPage() {
       render: u => <span style={{ color: '#374151' }}>{u._area?.nombre ?? '—'}</span>,
     },
     {
-      key: 'descripcion',
-      header: 'Descripción',
-      render: u => (
-        <span style={{ fontSize: 13, color: '#6b7280', maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {u.descripcion || '—'}
-        </span>
-      ),
+      key: 'encargado',
+      header: 'Encargado',
+      render: u => u._encargado
+        ? <span style={{ color: '#374151' }}>{u._encargado.nombres} {u._encargado.apellidos}</span>
+        : <span style={{ color: '#d1d5db' }}>—</span>,
     },
     {
       key: 'estado',
@@ -244,21 +241,35 @@ export function UbicacionesPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 90,
+      width: 180,
       render: u => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><EditIcon /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><TrashIcon /></IconButton>}
+          <IconButton
+            title="Ver unidades"
+            onClick={() => navigate(`/inventario/unidades?ubicacion=${u.id_ubicacion}`)}
+            style={{ color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}
+          >
+            <AppIcon name="layers" size={15} />
+          </IconButton>
+          <IconButton
+            title="Ver lotes"
+            onClick={() => navigate(`/inventario/lotes?ubicacion=${u.id_ubicacion}`)}
+            style={{ color: '#0891b2', background: '#ecfeff', border: '1px solid #a5f3fc' }}
+          >
+            <AppIcon name="package" size={15} />
+          </IconButton>
+          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><AppIcon name="edit" size={15} /></IconButton>
+          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Ubicaciones" description="Espacios físicos del almacén organizados por tipo" />
-
-      {error && <AlertBanner variant="error" style={{ marginBottom: 16 }}>{error}</AlertBanner>}
 
       {/* ── Cards de tipo como filtro ── */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -307,19 +318,19 @@ export function UbicacionesPage() {
         emptyDescription="Registra la primera ubicación del almacén."
         emptyAction={
           <AppButton size="compact" onClick={openCrearUb}>
-            <PlusIcon /> Nueva ubicación
+            <AppIcon name="plus" /> Nueva ubicación
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={openCrearTipo}>
-              <PlusIcon /> Nuevo tipo
+              <AppIcon name="plus" /> Nuevo tipo
             </AppButton>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCrearUb}>
-              <PlusIcon /> Nueva ubicación
+              <AppIcon name="plus" /> Nueva ubicación
             </AppButton>
           </>
         }
@@ -329,6 +340,7 @@ export function UbicacionesPage() {
       <AppModal
         isOpen={!!tipoModal}
         onClose={() => setTipoModal(null)}
+        maxWidth={640}
         title={tipoModal?.mode === 'create' ? 'Nuevo tipo de ubicación' : 'Editar tipo'}
         footer={
           <>
@@ -348,7 +360,6 @@ export function UbicacionesPage() {
             <AppInput size="sm" value={tipoForm.descripcion} placeholder="Descripción del tipo de espacio"
               onChange={e => setT('descripcion', e.target.value)} />
           </FormField>
-          {tipoError && <AlertBanner variant="error">{tipoError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -356,6 +367,7 @@ export function UbicacionesPage() {
       <AppModal
         isOpen={!!ubModal}
         onClose={() => setUbModal(null)}
+        maxWidth={640}
         title={ubModal?.mode === 'create' ? 'Nueva ubicación' : `Editar — ${ubModal?.data?.nombre ?? ''}`}
         footer={
           <>
@@ -377,25 +389,41 @@ export function UbicacionesPage() {
           </FormField>
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Tipo" required>
-              <AppSelect size="sm" value={ubForm.id_tipo_ubicacion} onChange={e => setU('id_tipo_ubicacion', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {tipos.map(t => <option key={t.id_tipo_ubicacion} value={String(t.id_tipo_ubicacion)}>{t.nombre}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_tipo_ubicacion}
+                placeholder="— Seleccionar —"
+                options={tipos.map(t => ({ value: String(t.id_tipo_ubicacion), label: t.nombre }))}
+                onChange={v => setU('id_tipo_ubicacion', v)}
+              />
             </FormField>
             <FormField label="Área" required>
-              <AppSelect size="sm" value={ubForm.id_area} onChange={e => setU('id_area', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {areas.map(a => <option key={a.id_area} value={String(a.id_area)}>{a.nombre}</option>)}
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_area}
+                placeholder="— Seleccionar —"
+                options={areas.map(a => ({ value: String(a.id_area), label: a.nombre }))}
+                onChange={v => setU('id_area', v)}
+              />
+            </FormField>
+          </div>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <FormField label="Encargado">
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_encargado}
+                placeholder="— Sin encargado —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => setU('id_encargado', v)}
+              />
+            </FormField>
+            <FormField label="Estado">
+              <AppSelect size="sm" value={ubForm.estado} onChange={e => setU('estado', e.target.value)}>
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
               </AppSelect>
             </FormField>
           </div>
-          <FormField label="Estado">
-            <AppSelect size="sm" value={ubForm.estado} onChange={e => setU('estado', e.target.value)}>
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
-            </AppSelect>
-          </FormField>
-          {ubError && <AlertBanner variant="error">{ubError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -419,5 +447,6 @@ export function UbicacionesPage() {
         loading={delUb}
       />
     </div>
+    </>
   )
 }

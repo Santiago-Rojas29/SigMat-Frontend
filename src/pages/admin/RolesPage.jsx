@@ -1,31 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { Badge }         from '../../components/atoms/Badge'
-import { IconButton }    from '../../components/atoms/IconButton'
-import { FormField }     from '../../components/molecules/FormField'
-import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
-import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { AppModal }      from '../../components/organisms/AppModal'
-import { DataTable }     from '../../components/organisms/DataTable'
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function Ic({ size = 16, children }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  )
-}
-
-const PlusIcon    = () => <Ic><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Ic>
-const RefreshIcon = () => <Ic><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></Ic>
-const EditIcon    = () => <Ic size={15}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></Ic>
-const TrashIcon   = () => <Ic size={15}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></Ic>
+import { AppButton }      from '../../components/atoms/AppButton'
+import { AppInput }       from '../../components/atoms/AppInput'
+import { Badge }          from '../../components/atoms/Badge'
+import { IconButton }     from '../../components/atoms/IconButton'
+import { FormField }      from '../../components/molecules/FormField'
+import { PageHeader }     from '../../components/molecules/PageHeader'
+import { useToast }       from '../../hooks/useToast'
+import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
+import { AppModal }       from '../../components/organisms/AppModal'
+import { DataTable }      from '../../components/organisms/DataTable'
+import { PermisosRolModal } from '../../components/organisms/PermisosRolModal'
+import { AppIcon }        from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -36,16 +22,19 @@ const EMPTY_FORM = { nombre: '', descripcion: '' }
 export function RolesPage() {
   const [roles,    setRoles]    = useState([])
   const [usuarios, setUsuarios] = useState([])
+  const [permisos, setPermisos] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [modal,     setModal]     = useState(null)  // null | { mode: 'create'|'edit', data? }
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
 
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting,     setDeleting]     = useState(false)
+  const [deleteTarget,   setDeleteTarget]   = useState(null)
+  const [deleting,       setDeleting]       = useState(false)
+  const [permisosTarget, setPermisosTarget] = useState(null)  // rol seleccionado para permisos
 
   // ── Carga de datos ────────────────────────────────────────────────────────
 
@@ -53,12 +42,14 @@ export function RolesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [rRes, uRes] = await Promise.all([
+      const [rRes, uRes, pRes] = await Promise.all([
         api.get('/rol'),
         api.get('/usuario'),
+        api.get('/permisos'),
       ])
       setRoles(rRes.data)
       setUsuarios(uRes.data)
+      setPermisos(pRes.data)
     } catch {
       setError('No se pudo cargar la información.')
     } finally {
@@ -77,36 +68,35 @@ export function RolesPage() {
 
   const openCreate = () => {
     setForm(EMPTY_FORM)
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
   const openEdit = (rol) => {
     setForm({ nombre: rol.nombre, descripcion: rol.descripcion })
-    setFormError(null)
     setModal({ mode: 'edit', data: rol })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.nombre.trim()) {
-      setFormError('El nombre del rol es obligatorio.')
+      showToast('error', 'El nombre del rol es obligatorio.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/rol', form)
+        showToast('success', 'Rol creado correctamente.')
       } else {
         await api.patch(`/rol/${modal.data.id}`, form)
+        showToast('success', 'Rol actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -116,11 +106,12 @@ export function RolesPage() {
     setDeleting(true)
     try {
       await api.delete(`/rol/${deleteTarget.id}`)
+      showToast('success', 'Rol eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -160,14 +151,21 @@ export function RolesPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 90,
+      width: 120,
       render: (r) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <IconButton
+            title="Gestionar permisos"
+            onClick={() => setPermisosTarget(r)}
+            style={{ color: '#7c3aed' }}
+          >
+            <AppIcon name="shield" size={15} />
+          </IconButton>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(r)}>
-            <EditIcon />
+            <AppIcon name="edit" size={15} />
           </IconButton>
           <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(r)}>
-            <TrashIcon />
+            <AppIcon name="trash" size={15} />
           </IconButton>
         </div>
       ),
@@ -177,10 +175,12 @@ export function RolesPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Roles"
-        description="Categorías de usuario del sistema. Los permisos se asignan individualmente desde el módulo de Usuarios."
+        description="Categorías de usuario del sistema. Los permisos se asignan por rol y los usuarios los heredan automáticamente."
       />
 
       <DataTable
@@ -196,16 +196,16 @@ export function RolesPage() {
         emptyDescription="Crea el primer rol del sistema."
         emptyAction={
           <AppButton size="compact" onClick={openCreate}>
-            <PlusIcon /> Nuevo rol
+            <AppIcon name="plus" /> Nuevo rol
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
-              <RefreshIcon /> Actualizar
+              <AppIcon name="refresh" /> Actualizar
             </AppButton>
             <AppButton size="compact" onClick={openCreate}>
-              <PlusIcon /> Nuevo rol
+              <AppIcon name="plus" /> Nuevo rol
             </AppButton>
           </>
         }
@@ -215,6 +215,7 @@ export function RolesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo rol' : `Editar — ${modal?.data?.nombre ?? ''}`}
         footer={
           <>
@@ -248,13 +249,9 @@ export function RolesPage() {
 
           {/* Aviso informativo */}
           <div style={{
-            background: '#f0f9ff',
-            border: '1px solid #bae6fd',
-            borderRadius: 8,
-            padding: '10px 14px',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'flex-start',
+            background: '#f0f9ff', border: '1px solid #bae6fd',
+            borderRadius: 8, padding: '10px 14px',
+            display: 'flex', gap: 10, alignItems: 'flex-start',
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -264,14 +261,29 @@ export function RolesPage() {
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <p style={{ fontSize: 12.5, color: '#0369a1', margin: 0, lineHeight: 1.5 }}>
-              Los permisos se asignan directamente a cada usuario desde el módulo de Usuarios.
-              El rol es solo una etiqueta de clasificación.
+              Después de crear el rol, usa el botón{' '}
+              <strong>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ verticalAlign: 'middle', marginRight: 2 }}>
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Permisos
+              </strong>{' '}
+              para configurar qué módulos, submódulos y acciones tiene asignados.
             </p>
           </div>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
+
+      {/* Modal de permisos del rol */}
+      <PermisosRolModal
+        isOpen={!!permisosTarget}
+        onClose={() => setPermisosTarget(null)}
+        rol={permisosTarget}
+        permisos={permisos}
+      />
 
       {/* Confirmar eliminación */}
       <ConfirmDialog
@@ -279,7 +291,7 @@ export function RolesPage() {
         title="Eliminar rol"
         description={
           deleteTarget
-            ? <>¿Eliminar el rol <strong>{deleteTarget.nombre}</strong>? Los usuarios con este rol seguirán existiendo pero quedarán sin categoría.</>
+            ? <>¿Eliminar el rol <strong>{deleteTarget.nombre}</strong>? Los usuarios con este rol quedarán sin categoría y sin permisos.</>
             : null
         }
         confirmLabel="Sí, eliminar"
@@ -288,5 +300,6 @@ export function RolesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

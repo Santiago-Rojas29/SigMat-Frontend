@@ -1,14 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageHeader } from '../../components/molecules/PageHeader'
-import { DataTable } from '../../components/organisms/DataTable'
-import { AppModal } from '../../components/organisms/AppModal'
-import { AppButton } from '../../components/atoms/AppButton'
-import { Badge } from '../../components/atoms/Badge'
-import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { AlertBanner } from '../../components/molecules/AlertBanner'
-import { useAuth } from '../../context/AuthContext'
-import { usePermissions } from '../../context/PermissionsContext'
-import api from '../../services/api'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { useToast }         from '../../hooks/useToast'
+import { useAuth }          from '../../context/AuthContext'
+import { usePermissions }   from '../../context/PermissionsContext'
+import api                  from '../../services/api'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 
 const TIPOS = {
   dano:          { label: 'Daño',          variant: 'danger'  },
@@ -71,7 +75,7 @@ export function IncidenciasPage() {
   const [usuarios,    setUsuarios]    = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState('')
+  const { showToast, toastPortal } = useToast()
 
   const [filterKey,  setFilterKey]  = useState(null)
   const [saving,     setSaving]     = useState(false)
@@ -103,7 +107,7 @@ export function IncidenciasPage() {
       setUsuarios(ruu.data)
       setMateriales(rm.data)
     } catch {
-      setError('Error al cargar los datos')
+      showToast('error', 'Error al cargar los datos')
     } finally {
       setLoading(false)
     }
@@ -117,9 +121,9 @@ export function IncidenciasPage() {
   )
 
   const incidenciasRicas = useMemo(() => {
-    const uMap  = Object.fromEntries(unidades.map(u => [u.id_unidad,  u]))
-    const mMap  = Object.fromEntries(materiales.map(m => [m.id_material, m]))
-    const uuMap = Object.fromEntries(usuarios.map(u => [u.id_usuario, u]))
+    const uMap  = Object.fromEntries(unidades.map(u => [u.id_unidad, u]))
+    const mMap  = Object.fromEntries(materiales.map(m => [m.id, m]))
+    const uuMap = Object.fromEntries(usuarios.map(u => [u.id, u]))
     return incidencias.map(inc => {
       const unidad   = uMap[inc.id_unidad]  ?? null
       const mat      = unidad ? mMap[unidad.id_material] ?? null : null
@@ -156,17 +160,18 @@ export function IncidenciasPage() {
     try {
       await api.post('/incidencia', {
         id_unidad:        form.id_unidad,
-        id_usuario:       user.id_usuario,
+        id_usuario:       user.id,
         tipo:             form.tipo,
         fecha_incidencia: new Date(form.fecha_incidencia).toISOString(),
         descripcion:      form.descripcion.trim(),
         estado:           'abierta',
       })
       await api.patch(`/unidad/${form.id_unidad}`, { estado: ESTADO_UNIDAD_MAP[form.tipo] })
+      showToast('success', 'Incidencia registrada correctamente.')
       setModalCrear(false)
       load()
     } catch {
-      setError('Error al registrar la incidencia')
+      showToast('error', 'Error al registrar la incidencia')
     } finally {
       setSaving(false)
     }
@@ -180,10 +185,11 @@ export function IncidenciasPage() {
       if (formEstado === 'cerrada' && estadoInc.tipo !== 'perdida') {
         await api.patch(`/unidad/${estadoInc.id_unidad}`, { estado: 'disponible' })
       }
+      showToast('success', 'Estado actualizado correctamente.')
       setEstadoModal(false)
       load()
     } catch {
-      setError('Error al actualizar el estado')
+      showToast('error', 'Error al actualizar el estado')
     } finally {
       setActioning(false)
     }
@@ -193,10 +199,11 @@ export function IncidenciasPage() {
     setActioning(true)
     try {
       await api.delete(`/incidencia/${confirmDel.id}`)
+      showToast('success', 'Incidencia eliminada correctamente.')
       setConfirmDel({ open: false, id: '' })
       load()
     } catch {
-      setError('Error al eliminar la incidencia')
+      showToast('error', 'Error al eliminar la incidencia')
     } finally {
       setActioning(false)
     }
@@ -240,23 +247,23 @@ export function IncidenciasPage() {
     },
     {
       key: '_reporter', header: 'Reportado por',
-      render: r => r._reporter ? `${r._reporter.nombres ?? ''} ${r._reporter.apellidos ?? ''}`.trim() || r._reporter.correo : r.id_usuario,
+      render: r => r._reporter ? `${r._reporter.nombres ?? ''} ${r._reporter.apellidos ?? ''}`.trim() || r._reporter.correo : '—',
     },
     {
       key: '_acciones', header: 'Acciones', width: 120, searchable: false,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button title="Ver detalle" onClick={() => openDetail(r)} style={btnStyle('#2563eb')}>
-            <EyeIcon />
+            <AppIcon name="eye" size={15} />
           </button>
           {r.estado !== 'cerrada' && (
             <button title="Cambiar estado" onClick={() => openEstado(r)} style={btnStyle('#2d8000')}>
-              <EditIcon />
+              <AppIcon name="edit" size={15} />
             </button>
           )}
           {isAdmin && (
             <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id })} style={btnStyle('#dc2626')}>
-              <TrashIcon />
+              <AppIcon name="trash" size={15} />
             </button>
           )}
         </div>
@@ -265,10 +272,10 @@ export function IncidenciasPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Incidencias" description="Registro de daños, pérdidas y mantenimientos de unidades" />
-
-      {error && <AlertBanner type="error" message={error} onClose={() => setError('')} style={{ marginBottom: 20 }} />}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS_DEF.map(card => {
@@ -316,7 +323,7 @@ export function IncidenciasPage() {
         isOpen={modalCrear}
         onClose={() => setModalCrear(false)}
         title="Registrar incidencia"
-        maxWidth={540}
+        maxWidth={640}
         footer={
           <>
             <AppButton variant="ghost" size="compact" onClick={() => setModalCrear(false)} disabled={saving}>Cancelar</AppButton>
@@ -330,41 +337,33 @@ export function IncidenciasPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label style={labelStyle}>Unidad afectada *</label>
-            <select
+            <SearchableSelect
               value={form.id_unidad}
-              onChange={e => setForm(p => ({ ...p, id_unidad: e.target.value }))}
-              style={selectStyle}>
-              <option value="">Seleccionar unidad disponible...</option>
-              {unidadesDisponibles.map(u => {
-                const mat = materiales.find(m => m.id_material === u.id_material)
-                return (
-                  <option key={u.id_unidad} value={u.id_unidad}>
-                    {u.codigo_unidad} — {mat?.nombre ?? u.id_material}
-                  </option>
-                )
+              placeholder="Seleccionar unidad disponible..."
+              options={unidadesDisponibles.map(u => {
+                const mat = materiales.find(m => m.id === u.id_material)
+                return { value: u.id_unidad, label: `${u.codigo_unidad} — ${mat?.nombre ?? '—'}` }
               })}
-            </select>
+              onChange={v => setForm(p => ({ ...p, id_unidad: v }))}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
               <label style={labelStyle}>Tipo de incidencia *</label>
-              <select
+              <AppSelect
                 value={form.tipo}
-                onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}
-                style={selectStyle}>
+                onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>
                 <option value="dano">Daño</option>
                 <option value="perdida">Pérdida</option>
                 <option value="mantenimiento">Mantenimiento</option>
-              </select>
+              </AppSelect>
             </div>
             <div>
               <label style={labelStyle}>Fecha *</label>
-              <input
-                type="date"
+              <AppDateInput
                 value={form.fecha_incidencia}
                 onChange={e => setForm(p => ({ ...p, fecha_incidencia: e.target.value }))}
-                style={inputStyle}
               />
             </div>
           </div>
@@ -413,11 +412,11 @@ export function IncidenciasPage() {
 
             <div>
               <label style={labelStyle}>Nuevo estado *</label>
-              <select value={formEstado} onChange={e => setFormEstado(e.target.value)} style={selectStyle}>
+              <AppSelect value={formEstado} onChange={e => setFormEstado(e.target.value)}>
                 <option value="abierta">Abierta</option>
                 <option value="en proceso">En proceso</option>
                 <option value="cerrada">Cerrada</option>
-              </select>
+              </AppSelect>
             </div>
 
             {formEstado === 'cerrada' && (
@@ -441,7 +440,7 @@ export function IncidenciasPage() {
         isOpen={detailOpen}
         onClose={() => setDetailOpen(false)}
         title="Detalle de incidencia"
-        maxWidth={560}
+        maxWidth={640}
         footer={<AppButton variant="ghost" size="compact" onClick={() => setDetailOpen(false)}>Cerrar</AppButton>}
       >
         {detailInc && (
@@ -453,7 +452,7 @@ export function IncidenciasPage() {
               <Row label="Reportado por" value={
                 detailInc._reporter
                   ? `${detailInc._reporter.nombres ?? ''} ${detailInc._reporter.apellidos ?? ''}`.trim() || detailInc._reporter.correo
-                  : detailInc.id_usuario
+                  : '—'
               } />
             </div>
 
@@ -489,6 +488,7 @@ export function IncidenciasPage() {
         onCancel={() => setConfirmDel({ open: false, id: '' })}
       />
     </div>
+    </>
   )
 }
 
@@ -503,14 +503,4 @@ function btnStyle(color) {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'background 0.15s',
   }
-}
-
-function EyeIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-}
-function EditIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-}
-function TrashIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
 }
