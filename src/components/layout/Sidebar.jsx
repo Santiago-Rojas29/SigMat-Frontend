@@ -62,9 +62,16 @@ const NAV = [
       { label: 'Kardex',      path: '/control/kardex',      icon: 'chart',   module: 'control' },
     ],
   },
+  {
+    section: 'Reportes',
+    sectionModule: null,
+    items: [
+      { label: 'Reportes PDF', path: '/reportes', icon: 'printer', module: null },
+    ],
+  },
 ]
 
-export function Sidebar({ isOpen }) {
+export function Sidebar({ isOpen, isMobile, onClose }) {
   const { hasPermission, hasAnyPermission } = usePermissions()
   const [openSections, setOpenSections] = useState({})
 
@@ -76,26 +83,46 @@ export function Sidebar({ isOpen }) {
   }
   const itemVisible = (mod) => (!mod ? true : hasPermission(mod))
 
+  const asideStyle = isMobile ? {
+    position: 'fixed',
+    top: 0, left: 0,
+    width: W_OPEN,
+    minWidth: W_OPEN,
+    height: '100vh',
+    zIndex: 300,
+    background: '#ffffff',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRight: '1px solid #e5e7eb',
+    transform: isOpen ? 'translateX(0)' : `translateX(-${W_OPEN + 4}px)`,
+    transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+    boxShadow: isOpen ? '4px 0 24px rgba(0,0,0,0.13)' : 'none',
+  } : {
+    width: isOpen ? W_OPEN : W_CLOSED,
+    minWidth: isOpen ? W_OPEN : W_CLOSED,
+    height: '100vh',
+    background: '#ffffff',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRight: '1px solid #e5e7eb',
+    transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), min-width 0.25s cubic-bezier(0.4,0,0.2,1)',
+  }
+
+  // En móvil el sidebar siempre muestra etiquetas (nunca modo icon-only)
+  const showOpen = isMobile ? true : isOpen
+
   return (
-    <aside style={{
-      width: isOpen ? W_OPEN : W_CLOSED,
-      minWidth: isOpen ? W_OPEN : W_CLOSED,
-      height: '100vh',
-      background: '#ffffff',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      borderRight: '1px solid #e5e7eb',
-      transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1), min-width 0.25s cubic-bezier(0.4,0,0.2,1)',
-    }}>
+    <aside style={asideStyle}>
       {/* Logo */}
       <div style={{
         height: 60, display: 'flex', alignItems: 'center',
         padding: '0 16px', flexShrink: 0,
         borderBottom: '1px solid #e5e7eb',
-        justifyContent: 'center',
+        justifyContent: showOpen ? 'space-between' : 'center',
       }}>
-        {isOpen ? (
+        {showOpen ? (
           <img src={sigmatLogo} alt="SIGMAT"
             style={{ height: 44, width: 'auto', objectFit: 'contain' }} />
         ) : (
@@ -103,6 +130,17 @@ export function Sidebar({ isOpen }) {
             <img src={sigmatLogo} alt="SIGMAT"
               style={{ height: 38, width: 'auto', display: 'block' }} />
           </div>
+        )}
+        {isMobile && (
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#9ca3af', padding: 6, borderRadius: 6,
+            display: 'flex', alignItems: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         )}
       </div>
 
@@ -117,7 +155,7 @@ export function Sidebar({ isOpen }) {
           return (
             <div key={section ?? '__top'} style={{ marginBottom: section ? 2 : 0 }}>
 
-              {section && isOpen && (
+              {section && showOpen && (
                 <button
                   onClick={() => toggleSection(section)}
                   style={{
@@ -140,24 +178,25 @@ export function Sidebar({ isOpen }) {
                 </button>
               )}
 
-              {section && !isOpen && (
+              {section && !showOpen && (
                 <div style={{ height: 1, background: '#e5e7eb', margin: '6px 10px' }} />
               )}
 
-              {(!section || !isOpen) ? (
+              {(!section || !showOpen) ? (
                 <div>
                   {visible.map(item => (
                     <NavLink
                       key={item.path}
                       to={item.path}
                       end={item.path === '/dashboard'}
-                      title={!isOpen ? item.label : undefined}
+                      title={!showOpen ? item.label : undefined}
                       className={({ isActive }) =>
-                        `smt-link${isOpen ? '' : ' icon-only'}${isActive ? ' active' : ''}`
+                        `smt-link${showOpen ? '' : ' icon-only'}${isActive ? ' active' : ''}`
                       }
+                      onClick={isMobile ? onClose : undefined}
                     >
                       <AppIcon name={item.icon} size={17} style={{ flexShrink: 0 }} />
-                      {isOpen && item.label}
+                      {showOpen && item.label}
                     </NavLink>
                   ))}
                 </div>
@@ -176,6 +215,7 @@ export function Sidebar({ isOpen }) {
                         className={({ isActive }) =>
                           `smt-link${isActive ? ' active' : ''}`
                         }
+                        onClick={isMobile ? onClose : undefined}
                       >
                         <AppIcon name={item.icon} size={17} style={{ flexShrink: 0 }} />
                         {item.label}

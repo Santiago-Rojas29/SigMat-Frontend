@@ -1,15 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageHeader } from '../../components/molecules/PageHeader'
-import { DataTable } from '../../components/organisms/DataTable'
-import { AppModal } from '../../components/organisms/AppModal'
-import { AppButton } from '../../components/atoms/AppButton'
-import { Badge } from '../../components/atoms/Badge'
-import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { AlertBanner } from '../../components/molecules/AlertBanner'
-import { useAuth } from '../../context/AuthContext'
-import { usePermissions } from '../../context/PermissionsContext'
-import api from '../../services/api'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { useToast }         from '../../hooks/useToast'
+import { useAuth }          from '../../context/AuthContext'
+import { usePermissions }   from '../../context/PermissionsContext'
+import api                  from '../../services/api'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 
 const TIPOS = {
   dano:          { label: 'Daño',          variant: 'danger'  },
@@ -72,7 +75,7 @@ export function IncidenciasPage() {
   const [usuarios,    setUsuarios]    = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState('')
+  const { showToast, toastPortal } = useToast()
 
   const [filterKey,  setFilterKey]  = useState(null)
   const [saving,     setSaving]     = useState(false)
@@ -104,7 +107,7 @@ export function IncidenciasPage() {
       setUsuarios(ruu.data)
       setMateriales(rm.data)
     } catch {
-      setError('Error al cargar los datos')
+      showToast('error', 'Error al cargar los datos')
     } finally {
       setLoading(false)
     }
@@ -164,10 +167,11 @@ export function IncidenciasPage() {
         estado:           'abierta',
       })
       await api.patch(`/unidad/${form.id_unidad}`, { estado: ESTADO_UNIDAD_MAP[form.tipo] })
+      showToast('success', 'Incidencia registrada correctamente.')
       setModalCrear(false)
       load()
     } catch {
-      setError('Error al registrar la incidencia')
+      showToast('error', 'Error al registrar la incidencia')
     } finally {
       setSaving(false)
     }
@@ -181,10 +185,11 @@ export function IncidenciasPage() {
       if (formEstado === 'cerrada' && estadoInc.tipo !== 'perdida') {
         await api.patch(`/unidad/${estadoInc.id_unidad}`, { estado: 'disponible' })
       }
+      showToast('success', 'Estado actualizado correctamente.')
       setEstadoModal(false)
       load()
     } catch {
-      setError('Error al actualizar el estado')
+      showToast('error', 'Error al actualizar el estado')
     } finally {
       setActioning(false)
     }
@@ -194,10 +199,11 @@ export function IncidenciasPage() {
     setActioning(true)
     try {
       await api.delete(`/incidencia/${confirmDel.id}`)
+      showToast('success', 'Incidencia eliminada correctamente.')
       setConfirmDel({ open: false, id: '' })
       load()
     } catch {
-      setError('Error al eliminar la incidencia')
+      showToast('error', 'Error al eliminar la incidencia')
     } finally {
       setActioning(false)
     }
@@ -266,10 +272,10 @@ export function IncidenciasPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Incidencias" description="Registro de daños, pérdidas y mantenimientos de unidades" />
-
-      {error && <AlertBanner type="error" message={error} onClose={() => setError('')} style={{ marginBottom: 20 }} />}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS_DEF.map(card => {
@@ -317,7 +323,7 @@ export function IncidenciasPage() {
         isOpen={modalCrear}
         onClose={() => setModalCrear(false)}
         title="Registrar incidencia"
-        maxWidth={540}
+        maxWidth={640}
         footer={
           <>
             <AppButton variant="ghost" size="compact" onClick={() => setModalCrear(false)} disabled={saving}>Cancelar</AppButton>
@@ -331,41 +337,33 @@ export function IncidenciasPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label style={labelStyle}>Unidad afectada *</label>
-            <select
+            <SearchableSelect
               value={form.id_unidad}
-              onChange={e => setForm(p => ({ ...p, id_unidad: e.target.value }))}
-              style={selectStyle}>
-              <option value="">Seleccionar unidad disponible...</option>
-              {unidadesDisponibles.map(u => {
+              placeholder="Seleccionar unidad disponible..."
+              options={unidadesDisponibles.map(u => {
                 const mat = materiales.find(m => m.id === u.id_material)
-                return (
-                  <option key={u.id_unidad} value={u.id_unidad}>
-                    {u.codigo_unidad} — {mat?.nombre ?? '—'}
-                  </option>
-                )
+                return { value: u.id_unidad, label: `${u.codigo_unidad} — ${mat?.nombre ?? '—'}` }
               })}
-            </select>
+              onChange={v => setForm(p => ({ ...p, id_unidad: v }))}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
               <label style={labelStyle}>Tipo de incidencia *</label>
-              <select
+              <AppSelect
                 value={form.tipo}
-                onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}
-                style={selectStyle}>
+                onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>
                 <option value="dano">Daño</option>
                 <option value="perdida">Pérdida</option>
                 <option value="mantenimiento">Mantenimiento</option>
-              </select>
+              </AppSelect>
             </div>
             <div>
               <label style={labelStyle}>Fecha *</label>
-              <input
-                type="date"
+              <AppDateInput
                 value={form.fecha_incidencia}
                 onChange={e => setForm(p => ({ ...p, fecha_incidencia: e.target.value }))}
-                style={inputStyle}
               />
             </div>
           </div>
@@ -414,11 +412,11 @@ export function IncidenciasPage() {
 
             <div>
               <label style={labelStyle}>Nuevo estado *</label>
-              <select value={formEstado} onChange={e => setFormEstado(e.target.value)} style={selectStyle}>
+              <AppSelect value={formEstado} onChange={e => setFormEstado(e.target.value)}>
                 <option value="abierta">Abierta</option>
                 <option value="en proceso">En proceso</option>
                 <option value="cerrada">Cerrada</option>
-              </select>
+              </AppSelect>
             </div>
 
             {formEstado === 'cerrada' && (
@@ -442,7 +440,7 @@ export function IncidenciasPage() {
         isOpen={detailOpen}
         onClose={() => setDetailOpen(false)}
         title="Detalle de incidencia"
-        maxWidth={560}
+        maxWidth={640}
         footer={<AppButton variant="ghost" size="compact" onClick={() => setDetailOpen(false)}>Cerrar</AppButton>}
       >
         {detailInc && (
@@ -490,6 +488,7 @@ export function IncidenciasPage() {
         onCancel={() => setConfirmDel({ open: false, id: '' })}
       />
     </div>
+    </>
   )
 }
 

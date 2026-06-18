@@ -26,3 +26,9 @@ export function truncate(str, max = 8) {
   if (!str) return '—'
   return str.length > max ? str.slice(0, max) + '…' : str
 }
+
+/** Muestra solo los primeros 6 caracteres de un UUID con prefijo # */
+export function shortId(id) {
+  if (!id) return '—'
+  return '#' + id.replace(/-/g, '').slice(0, 6).toUpperCase()
+}

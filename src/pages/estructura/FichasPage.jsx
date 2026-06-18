@@ -1,17 +1,27 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }     from '../../components/atoms/IconButton'
 import { FormField }      from '../../components/molecules/FormField'
 import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
+import { useToast }       from '../../hooks/useToast'
 import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
 import { AppModal }       from '../../components/organisms/AppModal'
 import { DataTable }      from '../../components/organisms/DataTable'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+const ROL_EN_FICHA_OPTS = [
+  { value: 'instructor', label: 'Instructor líder' },
+  { value: 'aprendiz',   label: 'Aprendiz'         },
+]
+
+const ROL_VARIANT = { instructor: 'info', aprendiz: 'warning' }
+const ROL_LABEL   = { instructor: 'Instructor líder', aprendiz: 'Aprendiz' }
+
 const JORNADA_OPTS = [
   { value: 'manana',    label: 'Mañana' },
   { value: 'tarde',     label: 'Tarde' },
@@ -29,29 +39,45 @@ const EMPTY_FORM = {
 }
 
 export function FichasPage() {
-  const [fichas, setFichas] = useState([])
-  const [programas, setProgramas] = useState([])
+  const [fichas,       setFichas]       = useState([])
+  const [programas,    setProgramas]    = useState([])
+  const [usuarios,     setUsuarios]     = useState([])
+  const [roles,        setRoles]        = useState([])
+  const [fichaUsuarios,setFichaUsuarios]= useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
+
+  // ── Miembros modal ────────────────────────────────────────────────────────
+  const [membrosModal,   setMiembrosModal]   = useState(null)
+  const [miembroForm,    setMiembroForm]     = useState({ id_usuario: '', rol_en_ficha: 'aprendiz' })
+  const [miembroSaving,  setMiembroSaving]   = useState(false)
+  const [miembroDeleting,setMiembroDeleting] = useState(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [fichasRes, progRes] = await Promise.all([
+      const [fichasRes, progRes, usuRes, rolRes, fuRes] = await Promise.all([
         api.get('/ficha'),
         api.get('/programa'),
+        api.get('/usuario'),
+        api.get('/rol'),
+        api.get('/ficha-usuario'),
       ])
       setFichas(fichasRes.data)
       setProgramas(progRes.data)
+      setUsuarios(usuRes.data)
+      setRoles(rolRes.data)
+      setFichaUsuarios(fuRes.data)
     } catch {
       setError('No se pudo cargar la información. Verifica tu conexión.')
     } finally {
@@ -88,7 +114,6 @@ export function FichasPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -98,30 +123,30 @@ export function FichasPage() {
       fecha_inicio: toDateInputValue(f.fecha_inicio), fecha_fin: toDateInputValue(f.fecha_fin),
       jornada: f.jornada, estado: f.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: f })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.id_programa || !form.codigo_ficha || !form.fecha_inicio || !form.fecha_fin || !form.jornada) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/ficha', form)
+        showToast('success', 'Ficha creada correctamente.')
       } else {
         await api.patch(`/ficha/${modal.data.id_ficha}`, form)
+        showToast('success', 'Ficha actualizada correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -131,11 +156,12 @@ export function FichasPage() {
     setDeleting(true)
     try {
       await api.delete(`/ficha/${deleteTarget.id_ficha}`)
+      showToast('success', 'Ficha eliminada correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -144,6 +170,69 @@ export function FichasPage() {
   const handleBulkDelete = async (ids) => {
     await Promise.all(ids.map(id => api.delete(`/ficha/${id}`)))
     loadData()
+  }
+
+  // ── Lógica de miembros ────────────────────────────────────────────────────
+
+  const miembrosDeFicha = membrosModal
+    ? fichaUsuarios.filter(fu => fu.id_ficha === membrosModal.id_ficha)
+    : []
+
+  const yaHayInstructor = miembrosDeFicha.some(fu => fu.rol_en_ficha === 'instructor')
+
+  const rolNombreDeUsuario = (u) =>
+    roles.find(r => r.id === u.id_rol)?.nombre?.toLowerCase() ?? ''
+
+  const usuariosDisponibles = usuarios
+    .filter(u => !miembrosDeFicha.some(fu => fu.id_usuario === u.id))
+    .filter(u => {
+      const rn = rolNombreDeUsuario(u)
+      if (miembroForm.rol_en_ficha === 'instructor') return rn.includes('instructor')
+      if (miembroForm.rol_en_ficha === 'aprendiz')   return rn.includes('aprendiz')
+      return true
+    })
+
+  const fmtNombre = u => u ? `${u.nombres ?? ''} ${u.apellidos ?? ''}`.trim() || u.correo : '—'
+
+  const openMiembros = (ficha) => {
+    const yaInstructor = fichaUsuarios.some(fu => fu.id_ficha === ficha.id_ficha && fu.rol_en_ficha === 'instructor')
+    setMiembrosModal(ficha)
+    setMiembroForm({ id_usuario: '', rol_en_ficha: yaInstructor ? 'aprendiz' : 'instructor' })
+  }
+
+  const closeMiembros = () => {
+    setMiembrosModal(null)
+  }
+
+  const handleMiembroAgregar = async () => {
+    if (!miembroForm.id_usuario) { showToast('error', 'Selecciona un usuario.'); return }
+    setMiembroSaving(true)
+    try {
+      await api.post('/ficha-usuario', {
+        id_ficha:     membrosModal.id_ficha,
+        id_usuario:   miembroForm.id_usuario,
+        rol_en_ficha: miembroForm.rol_en_ficha,
+      })
+      showToast('success', 'Miembro agregado correctamente.')
+      const fuRes = await api.get('/ficha-usuario')
+      setFichaUsuarios(fuRes.data)
+      setMiembroForm({ id_usuario: '', rol_en_ficha: 'aprendiz' })
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al agregar.'))
+    } finally { setMiembroSaving(false) }
+  }
+
+  const handleMiembroEliminar = async (id_ficha, id_usuario) => {
+    setMiembroDeleting(id_usuario)
+    try {
+      await api.delete(`/ficha-usuario/${id_ficha}/${id_usuario}`)
+      showToast('success', 'Miembro eliminado correctamente.')
+      setFichaUsuarios(prev => prev.filter(fu => !(fu.id_ficha === id_ficha && fu.id_usuario === id_usuario)))
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+    } finally { setMiembroDeleting(null) }
   }
 
   const columns = [
@@ -199,21 +288,39 @@ export function FichasPage() {
       header: '',
       align: 'right',
       width: 90,
-      render: (f) => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(f)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(f)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
-        </div>
-      ),
+      render: (f) => {
+        const totalMiembros = fichaUsuarios.filter(fu => fu.id_ficha === f.id_ficha).length
+        return (
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <button
+              title="Gestionar miembros"
+              onClick={() => openMiembros(f)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb',
+                fontSize: 12, fontWeight: 600,
+              }}
+            >
+              <AppIcon name="users" size={13} />
+              {totalMiembros > 0 ? totalMiembros : '+'} miembro{totalMiembros !== 1 ? 's' : ''}
+            </button>
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(f)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(f)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          </div>
+        )
+      },
     },
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Fichas"
         description="Gestión de fichas de los programas de formación del SENA"
@@ -252,6 +359,7 @@ export function FichasPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva ficha' : 'Editar ficha'}
         footer={
           <>
@@ -268,13 +376,13 @@ export function FichasPage() {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ flex: 1 }}>
               <FormField label="Programa" required>
-                <AppSelect size="sm" value={form.id_programa}
-                  onChange={e => set('id_programa', e.target.value)}>
-                  <option value="">Seleccionar programa</option>
-                  {programas.map(p => (
-                    <option key={p.id_programa} value={p.id_programa}>{p.nombre}</option>
-                  ))}
-                </AppSelect>
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_programa}
+                  placeholder="Seleccionar programa"
+                  options={programas.map(p => ({ value: p.id_programa, label: p.nombre }))}
+                  onChange={v => set('id_programa', v)}
+                />
               </FormField>
             </div>
             <div style={{ flex: 1 }}>
@@ -288,13 +396,13 @@ export function FichasPage() {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ flex: 1 }}>
               <FormField label="Fecha de inicio" required>
-                <AppInput size="sm" type="date" value={form.fecha_inicio}
+                <AppDateInput size="sm" value={form.fecha_inicio}
                   onChange={e => set('fecha_inicio', e.target.value)} />
               </FormField>
             </div>
             <div style={{ flex: 1 }}>
               <FormField label="Fecha de fin" required>
-                <AppInput size="sm" type="date" value={form.fecha_fin}
+                <AppDateInput size="sm" value={form.fecha_fin}
                   onChange={e => set('fecha_fin', e.target.value)} />
               </FormField>
             </div>
@@ -324,7 +432,145 @@ export function FichasPage() {
             </div>
           </div>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+        </div>
+      </AppModal>
+
+      {/* ── Modal de miembros ─────────────────────────────────────────────── */}
+      <AppModal
+        isOpen={!!membrosModal}
+        onClose={closeMiembros}
+        title={`Miembros — Ficha ${membrosModal?.codigo_ficha ?? ''}`}
+        maxWidth={640}
+        footer={
+          <AppButton variant="ghost" size="compact" onClick={closeMiembros}>Cerrar</AppButton>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Lista de miembros actuales */}
+          {miembrosDeFicha.length === 0 ? (
+            <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+              Esta ficha aún no tiene miembros asignados.
+            </p>
+          ) : (
+            <>
+              {/* Instructores */}
+              {miembrosDeFicha.filter(fu => fu.rol_en_ficha === 'instructor').length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11.5, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                    Instructor líder
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {miembrosDeFicha.filter(fu => fu.rol_en_ficha === 'instructor').map(fu => {
+                      const u = usuarios.find(u => u.id === fu.id_usuario)
+                      return (
+                        <div key={fu.id_usuario} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '9px 14px', borderRadius: 8,
+                          background: '#eff6ff', border: '1px solid #bfdbfe',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1d4ed8' }}>{fmtNombre(u)}</span>
+                          </div>
+                          <IconButton
+                            title="Quitar de la ficha"
+                            disabled={miembroDeleting === fu.id_usuario}
+                            onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
+                            style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
+                          >
+                            <AppIcon name="trash" size={13} />
+                          </IconButton>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Aprendices */}
+              {miembrosDeFicha.filter(fu => fu.rol_en_ficha === 'aprendiz').length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11.5, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                    Aprendices
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {miembrosDeFicha.filter(fu => fu.rol_en_ficha === 'aprendiz').map(fu => {
+                      const u = usuarios.find(u => u.id === fu.id_usuario)
+                      return (
+                        <div key={fu.id_usuario} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '9px 14px', borderRadius: 8,
+                          background: '#fffbeb', border: '1px solid #fde68a',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#92400e' }}>{fmtNombre(u)}</span>
+                          </div>
+                          <IconButton
+                            title="Quitar de la ficha"
+                            disabled={miembroDeleting === fu.id_usuario}
+                            onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
+                            style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
+                          >
+                            <AppIcon name="trash" size={13} />
+                          </IconButton>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Formulario para agregar miembro */}
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Agregar miembro
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <FormField label="Rol" style={{ flex: 1 }}>
+                <AppSelect
+                  size="sm"
+                  value={miembroForm.rol_en_ficha}
+                  onChange={e => setMiembroForm(p => ({ ...p, id_usuario: '', rol_en_ficha: e.target.value }))}
+                >
+                  {ROL_EN_FICHA_OPTS
+                    .filter(o => !(o.value === 'instructor' && yaHayInstructor))
+                    .map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                </AppSelect>
+              </FormField>
+              <FormField label="Usuario" style={{ flex: 2 }}>
+                <SearchableSelect
+                  size="sm"
+                  value={miembroForm.id_usuario}
+                  placeholder="— Seleccionar usuario —"
+                  options={usuariosDisponibles.map(u => ({ value: u.id, label: fmtNombre(u) }))}
+                  onChange={v => setMiembroForm(p => ({ ...p, id_usuario: v }))}
+                />
+              </FormField>
+              <div style={{ marginBottom: 1 }}>
+                <AppButton size="compact" onClick={handleMiembroAgregar} loading={miembroSaving}>
+                  Agregar
+                </AppButton>
+              </div>
+            </div>
+            {usuariosDisponibles.length === 0 && !miembroSaving && (
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>
+                {miembroForm.rol_en_ficha === 'instructor'
+                  ? 'No hay instructores disponibles para agregar.'
+                  : 'No hay aprendices disponibles para agregar.'}
+              </p>
+            )}
+          </div>
+
         </div>
       </AppModal>
 
@@ -342,5 +588,6 @@ export function FichasPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

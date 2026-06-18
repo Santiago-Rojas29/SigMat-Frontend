@@ -213,7 +213,7 @@ export function DataTable({
                               ? <CopyableCell
                                   rawValue={row[col.key]}
                                   truncateAt={col.truncateAt}
-                                  display={col.render ? col.render(row) : row[col.key]}
+                                  display={col.render ? col.render(row) : undefined}
                                 />
                               : col.render ? col.render(row) : row[col.key]}
                         </td>
@@ -263,10 +263,14 @@ function CopyableCell({ rawValue, truncateAt, display }) {
   const raw    = rawValue != null ? String(rawValue) : ''
   const isLong = truncateAt && raw.length > truncateAt
 
+  const shortLabel = isLong
+    ? '#' + raw.replace(/-/g, '').slice(0, 6).toUpperCase()
+    : raw
+
   const shown = display != null
     ? display
     : isLong
-      ? <span className="dt-mono">{raw.slice(0, truncateAt)}<span className="dt-mono-ellipsis">…</span></span>
+      ? <span className="dt-mono">{shortLabel}</span>
       : raw
 
   function handleCopy(e) {

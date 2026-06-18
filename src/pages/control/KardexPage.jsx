@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../../services/api'
 import { AppButton }   from '../../components/atoms/AppButton'
 import { AppInput }    from '../../components/atoms/AppInput'
+import { AppDateInput } from '../../components/atoms/AppDateInput'
 import { AppSelect }   from '../../components/atoms/AppSelect'
 import { Badge }       from '../../components/atoms/Badge'
+import { StatCard }    from '../../components/atoms/StatCard'
 import { PageHeader }  from '../../components/molecules/PageHeader'
 import { FormField }   from '../../components/molecules/FormField'
 import { DataTable }   from '../../components/organisms/DataTable'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { AppIcon }     from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -198,22 +200,17 @@ export function KardexPage() {
       <PageHeader title="Kardex" description="Historial automático de movimientos del inventario" />
 
       {/* Tarjetas resumen */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Total',     count: counts.total,     color: '#374151', bg: '#f9fafb', border: '#e5e7eb' },
-          { label: 'Entradas',  count: counts.entradas,  color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-          { label: 'Salidas',   count: counts.salidas,   color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-          { label: 'Traslados', count: counts.traslados, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-          { label: 'Bajas',     count: counts.ajustes,   color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-        ].map(card => (
-          <div key={card.label} style={{
-            flex: '1 1 100px', minWidth: 90, padding: '12px 16px', borderRadius: 10,
-            background: card.bg, border: `1.5px solid ${card.border}`,
-          }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{card.count}</div>
-            <div style={{ fontSize: 11.5, color: card.color, marginTop: 3, fontWeight: 600 }}>{card.label}</div>
-          </div>
-        ))}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        <StatCard label="Todos"      count={counts.total}     color="#111827" bg="#fff"     border="#e5e7eb" active={filtroTipo === ''}         onClick={() => setFiltroTipo('')}
+          icon={<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>} />
+        <StatCard label="Entradas"   count={counts.entradas}  color="#16a34a" bg="#f0fdf4" border="#bbf7d0" active={filtroTipo === 'entrada'}   onClick={() => setFiltroTipo(filtroTipo === 'entrada'   ? '' : 'entrada')}
+          icon={<><path d="M12 2v10"/><path d="m7 9 5 5 5-5"/><rect x="2" y="17" width="20" height="5" rx="1"/></>} />
+        <StatCard label="Salidas"    count={counts.salidas}   color="#dc2626" bg="#fef2f2" border="#fecaca" active={filtroTipo === 'salida'}    onClick={() => setFiltroTipo(filtroTipo === 'salida'    ? '' : 'salida')}
+          icon={<><path d="M12 22V12"/><path d="m7 15 5-5 5 5"/><rect x="2" y="2" width="20" height="5" rx="1"/></>} />
+        <StatCard label="Traslados"  count={counts.traslados} color="#2563eb" bg="#eff6ff" border="#bfdbfe" active={filtroTipo === 'traslado'}  onClick={() => setFiltroTipo(filtroTipo === 'traslado'  ? '' : 'traslado')}
+          icon={<><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></>} />
+        <StatCard label="Bajas"      count={counts.ajustes}   color="#d97706" bg="#fffbeb" border="#fde68a" active={filtroTipo === 'ajuste'}    onClick={() => setFiltroTipo(filtroTipo === 'ajuste'    ? '' : 'ajuste')}
+          icon={<><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />
       </div>
 
       {/* Filtros */}
@@ -227,12 +224,12 @@ export function KardexPage() {
         </div>
         <div style={{ minWidth: 140 }}>
           <FormField label="Desde">
-            <AppInput size="sm" type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
+            <AppDateInput size="sm" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
           </FormField>
         </div>
         <div style={{ minWidth: 140 }}>
           <FormField label="Hasta">
-            <AppInput size="sm" type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
+            <AppDateInput size="sm" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
           </FormField>
         </div>
         {(filtroTipo || filtroDesde || filtroHasta) && (
@@ -255,7 +252,7 @@ export function KardexPage() {
         rowKey="id"
         searchable
         searchPlaceholder="Buscar por material, código…"
-        pageSize={15}
+        pageSize={10}
         emptyTitle="Sin movimientos"
         emptyDescription="Los movimientos se registran automáticamente al crear lotes, traslados o incidencias."
       />

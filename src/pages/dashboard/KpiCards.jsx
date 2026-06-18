@@ -77,7 +77,7 @@ const CARDS = [
 
 export function KpiCards({ kpis, loading }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
       {CARDS.map(({ key, label, color, bg, alert, icon }) => {
         const value = kpis?.[key] ?? 0
         const showAlert = alert && value > 0

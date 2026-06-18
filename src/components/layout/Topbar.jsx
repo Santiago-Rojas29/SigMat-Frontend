@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../services/api'
 import { AppIcon } from '../atoms/AppIcon'
+import { NotificacionBell } from '../atoms/NotificacionBell'
 import './Topbar.css'
 
 const PAGE_TITLES = {
@@ -48,7 +49,7 @@ function getInitials(nombres) {
   return words.map(w => w[0]).join('').toUpperCase().slice(0, 3)
 }
 
-export function Topbar({ onMenuToggle }) {
+export function Topbar({ onMenuToggle, isMobile }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -126,16 +127,22 @@ export function Topbar({ onMenuToggle }) {
           <AppIcon name="menu" size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {section && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {section && !isMobile && (
             <>
-              <span style={{ fontSize: 13, color: '#a1a1aa' }}>{section}</span>
+              <span style={{ fontSize: 13, color: '#a1a1aa', whiteSpace: 'nowrap' }}>{section}</span>
               <span style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1 }}>/</span>
             </>
           )}
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#18181b' }}>{title}</span>
+          <span style={{
+            fontSize: isMobile ? 14 : 15, fontWeight: 600, color: '#18181b',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{title}</span>
         </div>
       </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <NotificacionBell />
 
       <div ref={ref} style={{ position: 'relative' }}>
         <button
@@ -144,7 +151,7 @@ export function Topbar({ onMenuToggle }) {
             display: 'flex', alignItems: 'center', gap: 8,
             background: isOpen ? '#f0f8e8' : '#fafafa',
             border: `1px solid ${isOpen ? '#c3e6a0' : '#e4e4e7'}`,
-            borderRadius: 20, padding: '5px 12px 5px 6px',
+            borderRadius: 20, padding: isMobile ? '5px 6px' : '5px 12px 5px 6px',
             cursor: 'pointer', transition: 'background 0.18s, border-color 0.18s',
             outline: 'none',
           }}
@@ -164,25 +171,29 @@ export function Topbar({ onMenuToggle }) {
               {initials}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-            <span style={{
-              fontSize: 13, fontWeight: 500, color: '#3f3f46',
-              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {shortName}
-            </span>
-            {rolNombre && (
+          {!isMobile && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
               <span style={{
-                fontSize: 10, fontWeight: 600, color: rolColor,
+                fontSize: 13, fontWeight: 500, color: '#3f3f46',
                 maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                {rolCfg?.label ?? rolNombre}
+                {shortName}
               </span>
-            )}
-          </div>
-          <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
-            {isOpen ? <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease", transform: "rotate(180deg)" }} /> : <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease" }} />}
-          </span>
+              {rolNombre && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, color: rolColor,
+                  maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {rolCfg?.label ?? rolNombre}
+                </span>
+              )}
+            </div>
+          )}
+          {!isMobile && (
+            <span style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
+              {isOpen ? <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease", transform: "rotate(180deg)" }} /> : <AppIcon name="chev-down" size={13} style={{ transition: "transform 0.22s ease" }} />}
+            </span>
+          )}
         </button>
 
         {showDropdown && (
@@ -279,6 +290,7 @@ export function Topbar({ onMenuToggle }) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </header>
   )

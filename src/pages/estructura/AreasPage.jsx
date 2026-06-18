@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
-import { IconButton }     from '../../components/atoms/IconButton'
-import { FormField }      from '../../components/molecules/FormField'
-import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
-import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
-import { AppModal }       from '../../components/organisms/AppModal'
-import { DataTable }      from '../../components/organisms/DataTable'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
+import { FormField }        from '../../components/molecules/FormField'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { useToast }         from '../../hooks/useToast'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 const EMPTY_FORM = {
   id_sede: '', id_usuario: '', nombre: '', descripcion: '', estado: 'activo',
 }
@@ -26,7 +27,8 @@ export function AreasPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -64,7 +66,6 @@ export function AreasPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -73,30 +74,30 @@ export function AreasPage() {
       id_sede: a.id_sede, id_usuario: a.id_usuario,
       nombre: a.nombre, descripcion: a.descripcion, estado: a.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: a })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.nombre || !form.descripcion || !form.id_sede || !form.id_usuario) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/area', form)
+        showToast('success', 'Área creada correctamente.')
       } else {
         await api.patch(`/area/${modal.data.id_area}`, form)
+        showToast('success', 'Área actualizada correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -106,11 +107,12 @@ export function AreasPage() {
     setDeleting(true)
     try {
       await api.delete(`/area/${deleteTarget.id_area}`)
+      showToast('success', 'Área eliminada correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -178,7 +180,9 @@ export function AreasPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Áreas"
         description="Gestión de áreas de las sedes del SENA"
@@ -217,6 +221,7 @@ export function AreasPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva área' : 'Editar área'}
         footer={
           <>
@@ -232,23 +237,23 @@ export function AreasPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Sede" required>
-              <AppSelect size="sm" value={form.id_sede}
-                onChange={e => set('id_sede', e.target.value)}>
-                <option value="">Seleccionar sede</option>
-                {sedes.map(s => (
-                  <option key={s.id_sede} value={s.id_sede}>{s.nombre}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_sede}
+                placeholder="Seleccionar sede"
+                options={sedes.map(s => ({ value: s.id_sede, label: s.nombre }))}
+                onChange={v => set('id_sede', v)}
+              />
             </FormField>
 
             <FormField label="Responsable" required>
-              <AppSelect size="sm" value={form.id_usuario}
-                onChange={e => set('id_usuario', e.target.value)}>
-                <option value="">Seleccionar usuario</option>
-                {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_usuario}
+                placeholder="Seleccionar usuario"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => set('id_usuario', v)}
+              />
             </FormField>
           </div>
 
@@ -270,7 +275,6 @@ export function AreasPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -288,5 +292,6 @@ export function AreasPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

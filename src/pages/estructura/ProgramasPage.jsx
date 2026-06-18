@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
-import { IconButton }     from '../../components/atoms/IconButton'
-import { FormField }      from '../../components/molecules/FormField'
-import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
-import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
-import { AppModal }       from '../../components/organisms/AppModal'
-import { DataTable }      from '../../components/organisms/DataTable'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
+import { FormField }        from '../../components/molecules/FormField'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { useToast }         from '../../hooks/useToast'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 const NIVEL_OPTS = [
   { value: 'tecnico',       label: 'Técnico' },
   { value: 'tecnologo',     label: 'Tecnólogo' },
@@ -31,7 +32,8 @@ export function ProgramasPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -67,7 +69,6 @@ export function ProgramasPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -76,30 +77,30 @@ export function ProgramasPage() {
       id_area: String(p.id_area), nombre: p.nombre,
       codigo_programa: p.codigo_programa, nivel_formacion: p.nivel_formacion, estado: p.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: p })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.id_area || !form.nombre || !form.codigo_programa || !form.nivel_formacion) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/programa', form)
+        showToast('success', 'Programa creado correctamente.')
       } else {
         await api.patch(`/programa/${modal.data.id_programa}`, form)
+        showToast('success', 'Programa actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -109,11 +110,12 @@ export function ProgramasPage() {
     setDeleting(true)
     try {
       await api.delete(`/programa/${deleteTarget.id_programa}`)
+      showToast('success', 'Programa eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -181,7 +183,9 @@ export function ProgramasPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Programas"
         description="Gestión de programas de formación del SENA"
@@ -220,6 +224,7 @@ export function ProgramasPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo programa' : 'Editar programa'}
         footer={
           <>
@@ -236,13 +241,13 @@ export function ProgramasPage() {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ flex: 1 }}>
               <FormField label="Área" required>
-                <AppSelect size="sm" value={form.id_area}
-                  onChange={e => set('id_area', e.target.value)}>
-                  <option value="">Seleccionar área</option>
-                  {areas.map(a => (
-                    <option key={a.id_area} value={a.id_area}>{a.nombre}</option>
-                  ))}
-                </AppSelect>
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_area}
+                  placeholder="Seleccionar área"
+                  options={areas.map(a => ({ value: a.id_area, label: a.nombre }))}
+                  onChange={v => set('id_area', v)}
+                />
               </FormField>
             </div>
             <div style={{ flex: 1 }}>
@@ -276,7 +281,6 @@ export function ProgramasPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -294,5 +298,6 @@ export function ProgramasPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

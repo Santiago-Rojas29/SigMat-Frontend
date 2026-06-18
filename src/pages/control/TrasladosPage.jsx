@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
@@ -48,7 +50,7 @@ export function TrasladosPage() {
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [items,     setItems]     = useState([])   // { tipo, id, cantidad?, _label }
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+  const { showToast, toastPortal } = useToast()
 
   // Para añadir ítems al traslado
   const [addTipo,     setAddTipo]     = useState('unidad')
@@ -137,11 +139,11 @@ export function TrasladosPage() {
 
   const handleSave = async () => {
     if (!form.id_responsable || !form.id_ubicacion_origen || !form.id_ubicacion_destino) {
-      setFormError('Completa todos los campos requeridos.')
+      showToast('error', 'Completa todos los campos requeridos.')
       return
     }
     if (form.id_ubicacion_origen === form.id_ubicacion_destino) {
-      setFormError('El origen y destino deben ser diferentes.')
+      showToast('error', 'El origen y destino deben ser diferentes.')
       return
     }
 
@@ -149,7 +151,7 @@ export function TrasladosPage() {
     let efectivos = [...items]
     if (addId && !efectivos.find(i => i.id === addId)) {
       if (addTipo === 'lote' && (!addCantidad || Number(addCantidad) <= 0)) {
-        setFormError('Ingresa una cantidad válida para el lote seleccionado.')
+        showToast('error', 'Ingresa una cantidad válida para el lote seleccionado.')
         return
       }
       efectivos = [...efectivos, {
@@ -161,10 +163,10 @@ export function TrasladosPage() {
     }
 
     if (efectivos.length === 0) {
-      setFormError('Añade al menos un ítem para trasladar.')
+      showToast('error', 'Añade al menos un ítem para trasladar.')
       return
     }
-    setSaving(true); setFormError(null)
+    setSaving(true)
     try {
       await api.post('/traslado/realizar', {
         ...form,
@@ -172,13 +174,14 @@ export function TrasladosPage() {
           tipo === 'lote' ? { tipo, id, cantidad } : { tipo, id }
         ),
       })
+      showToast('success', 'Traslado realizado correctamente.')
       setModal(false)
       setForm(EMPTY_FORM)
       setItems([])
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al realizar el traslado.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al realizar el traslado.'))
     } finally { setSaving(false) }
   }
 
@@ -194,12 +197,53 @@ export function TrasladosPage() {
     },
     {
       key: 'origen',
-      header: 'Origen → Destino',
+      header: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+            background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa',
+            borderRadius: 5, padding: '2px 7px',
+          }}>Origen</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/>
+          </svg>
+          <span style={{
+            fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+            background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
+            borderRadius: 5, padding: '2px 7px',
+          }}>Destino</span>
+        </div>
+      ),
       render: (t) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-          <span style={{ color: '#374151', fontWeight: 500 }}>{nombreUbicacion(t.id_ubicacion_origen)}</span>
-          <span style={{ color: '#9ca3af' }}>→</span>
-          <span style={{ color: '#374151', fontWeight: 500 }}>{nombreUbicacion(t.id_ubicacion_destino)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa',
+            borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            {nombreUbicacion(t.id_ubicacion_origen)}
+          </span>
+
+          <svg width="20" height="16" viewBox="0 0 28 16" fill="none">
+            <line x1="0" y1="8" x2="20" y2="8" stroke="#d1d5db" strokeWidth="1.5" strokeDasharray="3 2"/>
+            <polygon points="20,4 28,8 20,12" fill="#d1d5db"/>
+          </svg>
+
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0',
+            borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            {nombreUbicacion(t.id_ubicacion_destino)}
+          </span>
         </div>
       ),
     },
@@ -218,7 +262,9 @@ export function TrasladosPage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Traslados" description="Movimiento de ítems entre ubicaciones del almacén" />
 
       <DataTable
@@ -255,7 +301,7 @@ export function TrasladosPage() {
       {/* Modal nuevo traslado */}
       <AppModal
         isOpen={modal}
-        onClose={() => { setModal(false); setFormError(null); setItems([]) }}
+        onClose={() => { setModal(false); setItems([]) }}
         title="Nuevo traslado"
         maxWidth={680}
         footer={
@@ -274,36 +320,40 @@ export function TrasladosPage() {
           {/* Responsable + fecha */}
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
-              <AppSelect size="sm" value={form.id_responsable} onChange={e => set('id_responsable', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_responsable}
+                placeholder="— Seleccionar —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => set('id_responsable', v)}
+              />
             </FormField>
             <FormField label="Fecha" required>
-              <AppInput size="sm" type="date" value={form.fecha_traslado} onChange={e => set('fecha_traslado', e.target.value)} />
+              <AppDateInput size="sm" value={form.fecha_traslado} onChange={e => set('fecha_traslado', e.target.value)} />
             </FormField>
           </div>
 
           {/* Origen → Destino */}
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Ubicación origen" required>
-              <AppSelect size="sm" value={form.id_ubicacion_origen}
-                onChange={e => { set('id_ubicacion_origen', e.target.value); setItems([]) }}>
-                <option value="">— Seleccionar —</option>
-                {ubicaciones.map(u => (
-                  <option key={u.id_ubicacion} value={String(u.id_ubicacion)}>{u.nombre}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_ubicacion_origen}
+                placeholder="— Seleccionar —"
+                options={ubicaciones.map(u => ({ value: String(u.id_ubicacion), label: u.nombre }))}
+                onChange={v => { set('id_ubicacion_origen', v); setItems([]) }}
+              />
             </FormField>
             <FormField label="Ubicación destino" required>
-              <AppSelect size="sm" value={form.id_ubicacion_destino} onChange={e => set('id_ubicacion_destino', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {ubicaciones
+              <SearchableSelect
+                size="sm"
+                value={form.id_ubicacion_destino}
+                placeholder="— Seleccionar —"
+                options={ubicaciones
                   .filter(u => String(u.id_ubicacion) !== String(form.id_ubicacion_origen))
-                  .map(u => (
-                    <option key={u.id_ubicacion} value={String(u.id_ubicacion)}>{u.nombre}</option>
-                  ))}
-              </AppSelect>
+                  .map(u => ({ value: String(u.id_ubicacion), label: u.nombre }))}
+                onChange={v => set('id_ubicacion_destino', v)}
+              />
             </FormField>
           </div>
 
@@ -338,19 +388,22 @@ export function TrasladosPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <FormField label={addTipo === 'unidad' ? 'Seleccionar unidad' : 'Seleccionar lote'}>
-                    <AppSelect size="sm" value={addId} onChange={e => setAddId(e.target.value)}>
-                      <option value="">— Seleccionar —</option>
-                      {addTipo === 'unidad'
+                    <SearchableSelect
+                      size="sm"
+                      value={addId}
+                      placeholder="— Seleccionar —"
+                      options={addTipo === 'unidad'
                         ? unidadesOrigen.map(u => {
                             const m = materiales.find(m => m.id === u.id_material)
-                            return <option key={u.id_unidad} value={u.id_unidad}>{m?.nombre ?? '—'} · {u.codigo_unidad}</option>
+                            return { value: u.id_unidad, label: `${m?.nombre ?? '—'} · ${u.codigo_unidad}` }
                           })
                         : lotesOrigen.map(l => {
                             const m = materiales.find(m => m.id === l.id_material)
-                            return <option key={l.id_lote} value={l.id_lote}>{m?.nombre ?? '—'} · {l.codigo_lote} (disp: {l.cantidad_disponible})</option>
+                            return { value: l.id_lote, label: `${m?.nombre ?? '—'} · ${l.codigo_lote} (disp: ${l.cantidad_disponible})` }
                           })
                       }
-                    </AppSelect>
+                      onChange={v => setAddId(v)}
+                    />
                   </FormField>
                 </div>
                 {addTipo === 'lote' && (
@@ -399,9 +452,9 @@ export function TrasladosPage() {
             )}
           </div>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
     </div>
+    </>
   )
 }

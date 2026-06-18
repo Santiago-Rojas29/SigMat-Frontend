@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import api from '../../services/api'
 import { AppButton }     from '../../components/atoms/AppButton'
 import { AppInput }      from '../../components/atoms/AppInput'
@@ -8,7 +9,7 @@ import { Badge }         from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
@@ -80,9 +81,17 @@ export function MaterialesPage() {
   const [modal,        setModal]        = useState(null)
   const [form,         setForm]         = useState(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
+
+  // Importar
+  const fileInputRef                    = useRef(null)
+  const [importModal,  setImportModal]  = useState(false)
+  const [importRows,   setImportRows]   = useState([])
+  const [importError,  setImportError]  = useState(null)  // keep for file-read errors shown inline
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState(null)
 
   // ── Carga ──────────────────────────────────────────────────────────────────
 
@@ -117,7 +126,6 @@ export function MaterialesPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, categoria: activeCateg ?? 'consumible' })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -132,14 +140,13 @@ export function MaterialesPage() {
       codigo_unspsc: m.codigo_unspsc,
       unidad_medida: m.unidad_medida ?? '',
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: m })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
-    setSaving(true); setFormError(null)
+    setSaving(true)
     try {
       const payload = {
         nombre:        form.nombre,
@@ -153,13 +160,15 @@ export function MaterialesPage() {
       }
       if (modal.mode === 'create') {
         await api.post('/material', payload)
+        showToast('success', 'Material creado correctamente.')
       } else {
         await api.patch(`/material/${modal.data.id}`, payload)
+        showToast('success', 'Material actualizado correctamente.')
       }
       closeModal(); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
 
@@ -167,11 +176,85 @@ export function MaterialesPage() {
     setDeleting(true)
     try {
       await api.delete(`/material/${deleteTarget.id}`)
+      showToast('success', 'Material eliminado correctamente.')
       setDeleteTarget(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
+  }
+
+  // ── Importar ───────────────────────────────────────────────────────────────
+
+  const PLANTILLA_COLS = ['nombre','categoria','tipo','marca','modelo','descripcion','codigo_unspsc','unidad_medida']
+  const PLANTILLA_EJEMPLO = [
+    ['Lápiz HB','consumible','Papelería','','','Lápiz de grafito HB','44122001','und'],
+    ['Computador HP','no consumible','Laptop','HP','ProBook 440','Portátil 14 pulgadas','43211503',''],
+    ['Carne de res','perecedero','Proteína','','','Carne molida fresca','50102300','kg'],
+  ]
+
+  const descargarPlantilla = () => {
+    const ws = XLSX.utils.aoa_to_sheet([PLANTILLA_COLS, ...PLANTILLA_EJEMPLO])
+    ws['!cols'] = PLANTILLA_COLS.map(() => ({ wch: 20 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Materiales')
+    XLSX.writeFile(wb, 'plantilla_materiales.xlsx')
+  }
+
+  const handleFileChange = (e) => {
+    setImportError(null)
+    setImportRows([])
+    setImportResult(null)
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        if (rows.length === 0) { setImportError('El archivo está vacío.'); return }
+        const mapped = rows.map(r => ({
+          nombre:        String(r['nombre'] ?? '').trim(),
+          categoria:     String(r['categoria'] ?? '').trim().toLowerCase(),
+          tipo:          String(r['tipo'] ?? '').trim(),
+          marca:         String(r['marca'] ?? '').trim() || null,
+          modelo:        String(r['modelo'] ?? '').trim() || null,
+          descripcion:   String(r['descripcion'] ?? '').trim(),
+          codigo_unspsc: String(r['codigo_unspsc'] ?? '').trim(),
+          unidad_medida: String(r['unidad_medida'] ?? '').trim() || null,
+        }))
+        setImportRows(mapped)
+      } catch {
+        setImportError('No se pudo leer el archivo. Verifica que sea .xlsx o .csv válido.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+    e.target.value = ''
+  }
+
+  const handleImportar = async () => {
+    if (!importRows.length) return
+    setImporting(true)
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const { data } = await api.post('/material/importar', { materiales: importRows })
+      setImportResult(data)
+      if (data.exitosos > 0) loadData()
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al importar.'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const closeImport = () => {
+    setImportModal(false)
+    setImportRows([])
+    setImportError(null)
+    setImportResult(null)
   }
 
   const handleBulkDelete = async (ids) => {
@@ -270,7 +353,9 @@ export function MaterialesPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Materiales" description="Catálogo de materiales del almacén SENA" />
 
       {/* Tarjetas de filtro */}
@@ -324,6 +409,11 @@ export function MaterialesPage() {
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
+            {isAdmin && (
+              <AppButton variant="ghost" size="compact" onClick={() => setImportModal(true)}>
+                <AppIcon name="upload" /> Importar
+              </AppButton>
+            )}
             <AppButton size="compact" onClick={openCreate}>
               <AppIcon name="plus" /> Nuevo material
             </AppButton>
@@ -335,6 +425,7 @@ export function MaterialesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo material' : `Editar — ${modal?.data?.nombre ?? ''}`}
         footer={
           <>
@@ -424,7 +515,153 @@ export function MaterialesPage() {
             </FormField>
           </div>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
+        </div>
+      </AppModal>
+
+      {/* Modal importar */}
+      <AppModal
+        isOpen={importModal}
+        onClose={closeImport}
+        maxWidth={720}
+        title="Importar materiales"
+        footer={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AppButton variant="ghost" size="compact" onClick={descargarPlantilla}>
+              <AppIcon name="printer" size={13} /> Descargar plantilla
+            </AppButton>
+            <div style={{ flex: 1 }} />
+            <AppButton variant="ghost" size="compact" onClick={closeImport}>Cancelar</AppButton>
+            {importRows.length > 0 && !importResult && (
+              <AppButton size="compact" onClick={handleImportar} loading={importing}>
+                <AppIcon name="upload" size={13} /> Importar {importRows.length} materiales
+              </AppButton>
+            )}
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Resultado */}
+          {importResult && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{
+                background: importResult.exitosos > 0 ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${importResult.exitosos > 0 ? '#bbf7d0' : '#fecaca'}`,
+                borderRadius: 8, padding: '12px 16px',
+                color: importResult.exitosos > 0 ? '#166534' : '#991b1b', fontSize: 14, fontWeight: 600,
+              }}>
+                {importResult.exitosos} material(es) importado(s) correctamente
+                {importResult.errores.length > 0 && ` · ${importResult.errores.length} con error`}
+              </div>
+              {importResult.errores.length > 0 && (
+                <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                  {importResult.errores.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: '#dc2626', padding: '3px 0' }}>
+                      Fila {e.fila}: {e.error}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <AppButton variant="ghost" size="compact" style={{ alignSelf: 'flex-start' }}
+                onClick={() => { setImportRows([]); setImportResult(null); setImportError(null) }}>
+                Importar otro archivo
+              </AppButton>
+            </div>
+          )}
+
+          {!importResult && (
+            <>
+              {/* Zona de carga */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: '2px dashed #d1d5db', borderRadius: 10, padding: '28px 20px',
+                  textAlign: 'center', cursor: 'pointer', background: '#fafafa',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#39A900'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#d1d5db'}
+              >
+                <AppIcon name="upload" size={28} style={{ color: '#9ca3af', marginBottom: 8 }} />
+                <div style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>
+                  Haz clic para seleccionar un archivo
+                </div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+                  Formatos aceptados: .xlsx, .xls, .csv
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              {/* Columnas requeridas */}
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>
+                  Columnas requeridas en el archivo
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['nombre *','categoria *','tipo *','marca','modelo','descripcion *','codigo_unspsc *','unidad_medida'].map(col => (
+                    <code key={col} style={{
+                      fontSize: 11, background: col.includes('*') ? '#dcfce7' : '#f3f4f6',
+                      color: col.includes('*') ? '#166534' : '#374151',
+                      padding: '2px 8px', borderRadius: 5,
+                    }}>{col}</code>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
+                  categoria: <code>consumible</code> | <code>no consumible</code> | <code>perecedero</code>
+                </div>
+              </div>
+
+              {importError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#991b1b' }}>
+                  {importError}
+                </div>
+              )}
+
+              {/* Preview */}
+              {importRows.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+                    Vista previa — {importRows.length} fila(s) detectadas
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#39A900' }}>
+                          {['nombre','categoria','tipo','marca','modelo','unidad_medida'].map(col => (
+                            <th key={col} style={{ padding: '6px 10px', color: '#fff', fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap' }}>
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importRows.slice(0, 6).map((row, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#f9fafb' : '#fff' }}>
+                            {['nombre','categoria','tipo','marca','modelo','unidad_medida'].map(col => (
+                              <td key={col} style={{ padding: '5px 10px', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                                {row[col] ?? '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importRows.length > 6 && (
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, textAlign: 'right' }}>
+                      + {importRows.length - 6} fila(s) más
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </AppModal>
 
@@ -442,5 +679,6 @@ export function MaterialesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

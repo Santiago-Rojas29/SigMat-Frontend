@@ -1,34 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AppModal }             from './AppModal'
-import { AppButton }            from '../atoms/AppButton'
-import { useToast }             from '../../hooks/useToast'
-import { ModuloPermisoToggle }  from '../molecules/ModuloPermisoToggle'
-import { usuarioPermisosService } from '../../services/usuarioPermisos.service'
-import { MODULOS }              from '../../constants/permisos.constants'
+import { AppModal }            from './AppModal'
+import { AppButton }           from '../atoms/AppButton'
+import { useToast }            from '../../hooks/useToast'
+import { ModuloPermisoToggle } from '../molecules/ModuloPermisoToggle'
+import { rolPermisosService }  from '../../services/rolPermisos.service'
+import { MODULOS }             from '../../constants/permisos.constants'
 
-export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
-  // selecciones: { [id_permiso]: { enabled, submodulos, assignmentId } }
-  const [selecciones,  setSelecciones]  = useState({})
-  const [original,     setOriginal]     = useState({})
-  const [loading,      setLoading]      = useState(false)
-  const [saving,       setSaving]       = useState(false)
+export function PermisosRolModal({ isOpen, onClose, rol, permisos }) {
+  // selecciones: { [id_permiso]: { enabled, submodulos, acciones, assignmentId } }
+  const [selecciones, setSelecciones] = useState({})
+  const [original,    setOriginal]    = useState({})
+  const [loading,     setLoading]     = useState(false)
+  const [saving,      setSaving]      = useState(false)
   const { showToast, toastPortal } = useToast()
 
-  // ── Carga las asignaciones actuales del usuario ───────────────────────────
+  // ── Carga asignaciones actuales del rol ───────────────────────────────────
 
   const loadAsignaciones = useCallback(async () => {
-    if (!usuario?.id || !permisos.length) return
+    if (!rol?.id || !permisos.length) return
     setLoading(true)
     try {
-      const asignaciones = await usuarioPermisosService.obtenerPorUsuario(usuario.id)
-
+      const asignaciones = await rolPermisosService.obtenerPorRol(rol.id)
       const estado = {}
       for (const p of permisos) {
         const asig = asignaciones.find(a => a.id_permiso === p.id)
         estado[p.id] = {
           enabled:      !!asig,
           submodulos:   asig?.submodulos ?? [],
-          assignmentId: asig?.id ?? null,
+          acciones:     asig?.acciones   ?? [],
+          assignmentId: asig?.id         ?? null,
         }
       }
       setSelecciones(estado)
@@ -38,7 +38,7 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
     } finally {
       setLoading(false)
     }
-  }, [usuario?.id, permisos])
+  }, [rol?.id, permisos])
 
   useEffect(() => {
     if (isOpen) loadAsignaciones()
@@ -58,18 +58,18 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
         const nowEnabled = cur.enabled
 
         if (!wasEnabled && nowEnabled) {
-          // Asignar nuevo permiso
-          await usuarioPermisosService.asignar(usuario.id, p.id, cur.submodulos)
+          await rolPermisosService.asignar(rol.id, p.id, cur.submodulos, cur.acciones)
         } else if (wasEnabled && !nowEnabled) {
-          // Revocar permiso
-          await usuarioPermisosService.revocar(ori.assignmentId)
+          await rolPermisosService.revocar(ori.assignmentId)
         } else if (wasEnabled && nowEnabled) {
-          // Actualizar submódulos si cambiaron
           const subsCambiaron =
             JSON.stringify([...cur.submodulos].sort()) !==
             JSON.stringify([...(ori.submodulos ?? [])].sort())
-          if (subsCambiaron) {
-            await usuarioPermisosService.actualizarSubmodulos(ori.assignmentId, cur.submodulos)
+          const accCambiaron =
+            JSON.stringify([...cur.acciones].sort()) !==
+            JSON.stringify([...(ori.acciones ?? [])].sort())
+          if (subsCambiaron || accCambiaron) {
+            await rolPermisosService.actualizar(ori.assignmentId, cur.submodulos, cur.acciones)
           }
         }
       }
@@ -82,12 +82,12 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
     }
   }
 
-  // ── Manejador de cambio por módulo ────────────────────────────────────────
+  // ── Manejador de cambio ───────────────────────────────────────────────────
 
-  const handleChange = (permisoId, { enabled, submodulos }) => {
+  const handleChange = (permisoId, { enabled, submodulos, acciones }) => {
     setSelecciones(prev => ({
       ...prev,
-      [permisoId]: { ...prev[permisoId], enabled, submodulos },
+      [permisoId]: { ...prev[permisoId], enabled, submodulos, acciones },
     }))
   }
 
@@ -104,12 +104,8 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
     <AppModal
       isOpen={isOpen}
       onClose={onClose}
-      maxWidth={640}
-      title={
-        usuario
-          ? `Permisos — ${usuario.nombres} ${usuario.apellidos}`
-          : 'Permisos de usuario'
-      }
+      maxWidth={660}
+      title={rol ? `Permisos del rol — ${rol.nombre}` : 'Permisos del rol'}
       footer={
         <>
           <AppButton variant="ghost" size="compact" onClick={onClose} disabled={saving}>
@@ -128,22 +124,24 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
       ) : (
         <div className="d-flex flex-column gap-2">
 
+          {/* Cabecera informativa */}
           <div className="mb-1">
             <p className="text-secondary mb-0" style={{ fontSize: 13 }}>
-              Activa los módulos y elige submódulos específicos. Sin submódulos marcados = acceso completo al módulo.
+              Activa los módulos, elige submódulos específicos y selecciona qué acciones
+              puede realizar este rol. Todos los usuarios con este rol heredarán estos permisos.
             </p>
             {totalActivos > 0 && (
-              <p className="mb-0 fw-500 mt-1" style={{ fontSize: 12, color: '#16a34a' }}>
+              <p className="mb-0 fw-600 mt-1" style={{ fontSize: 12, color: '#16a34a' }}>
                 {totalActivos} {totalActivos === 1 ? 'módulo activo' : 'módulos activos'}
               </p>
             )}
           </div>
 
-          {/* Un toggle por módulo */}
+          {/* Toggle por módulo */}
           {MODULOS.map(m => {
             const permiso = getPermisoByModulo(m.value)
             if (!permiso) return null
-            const sel = selecciones[permiso.id] ?? { enabled: false, submodulos: [] }
+            const sel = selecciones[permiso.id] ?? { enabled: false, submodulos: [], acciones: [] }
             return (
               <ModuloPermisoToggle
                 key={permiso.id}
@@ -151,6 +149,7 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
                 label={m.label}
                 enabled={sel.enabled}
                 submodulos={sel.submodulos}
+                acciones={sel.acciones}
                 onChange={(val) => handleChange(permiso.id, val)}
               />
             )

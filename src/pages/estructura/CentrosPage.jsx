@@ -7,7 +7,7 @@ import { Badge }          from '../../components/atoms/Badge'
 import { IconButton }     from '../../components/atoms/IconButton'
 import { FormField }      from '../../components/molecules/FormField'
 import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
+import { useToast }       from '../../hooks/useToast'
 import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
 import { AppModal }       from '../../components/organisms/AppModal'
 import { DataTable }      from '../../components/organisms/DataTable'
@@ -29,7 +29,8 @@ export function CentrosPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -59,7 +60,6 @@ export function CentrosPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -68,30 +68,30 @@ export function CentrosPage() {
       nombre: c.nombre, ciudad: c.ciudad,
       direccion: c.direccion, telefono: c.telefono, estado: c.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: c })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.nombre || !form.ciudad || !form.direccion || !form.telefono) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/centro', form)
+        showToast('success', 'Centro creado correctamente.')
       } else {
         await api.patch(`/centro/${modal.data.id}`, form)
+        showToast('success', 'Centro actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -101,11 +101,12 @@ export function CentrosPage() {
     setDeleting(true)
     try {
       await api.delete(`/centro/${deleteTarget.id}`)
+      showToast('success', 'Centro eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -169,7 +170,9 @@ export function CentrosPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Centros"
         description="Gestión de centros de formación del SENA"
@@ -209,6 +212,7 @@ export function CentrosPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo centro' : 'Editar centro'}
         footer={
           <>
@@ -251,7 +255,6 @@ export function CentrosPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -270,5 +273,6 @@ export function CentrosPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

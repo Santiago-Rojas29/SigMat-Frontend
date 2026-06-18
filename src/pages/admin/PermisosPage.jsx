@@ -7,7 +7,7 @@ import { Badge }         from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
@@ -29,7 +29,7 @@ export function PermisosPage() {
   const [modal,     setModal]     = useState(null)  // null | { mode: 'create'|'edit', data? }
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -59,13 +59,11 @@ export function PermisosPage() {
 
   const openCreate = () => {
     setForm(EMPTY_FORM)
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
   const openEdit = (p) => {
     setForm({ nombre: p.nombre, descripcion: p.descripcion, modulo: p.modulo, submodulos: p.submodulos ?? [] })
-    setFormError(null)
     setModal({ mode: 'edit', data: p })
   }
 
@@ -83,23 +81,24 @@ export function PermisosPage() {
     }))
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     setSaving(true)
-    setFormError(null)
     try {
       const payload = { ...form }
       if (modal.mode === 'create') {
         await api.post('/permisos', payload)
+        showToast('success', 'Permiso creado correctamente.')
       } else {
         await api.patch(`/permisos/${modal.data.id}`, payload)
+        showToast('success', 'Permiso actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -109,11 +108,12 @@ export function PermisosPage() {
     setDeleting(true)
     try {
       await api.delete(`/permisos/${deleteTarget.id}`)
+      showToast('success', 'Permiso eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      alert(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -174,7 +174,9 @@ export function PermisosPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Permisos"
         description="Gestión de permisos y módulos del sistema SIGMAT"
@@ -212,6 +214,7 @@ export function PermisosPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo permiso' : 'Editar permiso'}
         footer={
           <>
@@ -286,7 +289,6 @@ export function PermisosPage() {
             />
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -305,5 +307,6 @@ export function PermisosPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

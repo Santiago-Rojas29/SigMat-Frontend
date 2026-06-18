@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
@@ -43,14 +44,16 @@ export function UnidadesPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
   const [searchParams] = useSearchParams()
-  const navigate       = useNavigate()
-  const materialFiltroId = searchParams.get('material')
+  const navigate         = useNavigate()
+  const materialFiltroId  = searchParams.get('material')
+  const ubicacionFiltroId = searchParams.get('ubicacion')
 
   const [unidades,    setUnidades]    = useState([])
   const [materiales,  setMateriales]  = useState([])
   const [usuarios,    setUsuarios]    = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [fichas,      setFichas]      = useState([])
+  const [tipos,       setTipos]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -58,30 +61,41 @@ export function UnidadesPage() {
   const [modal,        setModal]        = useState(null)
   const [form,         setForm]         = useState(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
-  const [formError,    setFormError]    = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [uRes, mRes, usRes, ubRes, fRes] = await Promise.all([
+      const [uRes, mRes, usRes, ubRes, fRes, tRes] = await Promise.all([
         api.get('/unidad'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
         api.get('/ficha'),
+        api.get('/tipo-ubicacion'),
       ])
       setUnidades(uRes.data)
       setMateriales(mRes.data)
       setUsuarios(usRes.data)
       setUbicaciones(ubRes.data)
       setFichas(fRes.data)
+      setTipos(tRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const bodegaUbicacionIds = useMemo(() => {
+    const bodegaTipoIds = new Set(
+      tipos.filter(t => t.nombre?.toLowerCase() === 'bodega').map(t => String(t.id_tipo_ubicacion))
+    )
+    return new Set(
+      ubicaciones.filter(u => bodegaTipoIds.has(String(u.id_tipo_ubicacion))).map(u => String(u.id_ubicacion))
+    )
+  }, [tipos, ubicaciones])
 
   const unidadesRicas = useMemo(() => unidades.map(u => ({
     ...u,
@@ -104,13 +118,20 @@ export function UnidadesPage() {
     [materiales, materialFiltroId]
   )
 
+  const ubicacionFiltro = useMemo(
+    () => ubicaciones.find(u => String(u.id_ubicacion) === ubicacionFiltroId) ?? null,
+    [ubicaciones, ubicacionFiltroId]
+  )
+
   const datosTabla = useMemo(() => {
     let data = materialFiltroId
       ? unidadesRicas.filter(u => u.id_material === materialFiltroId)
-      : unidadesRicas
+      : ubicacionFiltroId
+        ? unidadesRicas.filter(u => String(u.id_ubicacion) === ubicacionFiltroId)
+        : unidadesRicas
     if (filtro) data = data.filter(u => u.estado === filtro)
     return data
-  }, [unidadesRicas, filtro, materialFiltroId])
+  }, [unidadesRicas, filtro, materialFiltroId, ubicacionFiltroId])
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const materialesNoConsumibles = materiales.filter(m => m.categoria === 'no consumible')
@@ -122,7 +143,6 @@ export function UnidadesPage() {
       id_responsable:usuarios[0]?.id ?? '',
       id_ubicacion:  String(ubicaciones[0]?.id_ubicacion ?? ''),
     })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -135,25 +155,31 @@ export function UnidadesPage() {
       estado:        u.estado,
       id_ficha:      u.id_ficha ?? '',
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: u })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
-    setSaving(true); setFormError(null)
+    const esBodega = bodegaUbicacionIds.has(String(form.id_ubicacion))
+    if (esBodega && !form.id_ficha) {
+      showToast('error', 'Esta ubicación es una bodega — debes seleccionar la ficha a la que pertenece la unidad.')
+      return
+    }
+    setSaving(true)
     try {
-      const payload = { ...form, id_ficha: form.id_ficha || null }
+      const payload = { ...form, id_ficha: esBodega ? (form.id_ficha || null) : null }
       if (modal.mode === 'create') {
         await api.post('/unidad', payload)
+        showToast('success', 'Unidad creada correctamente.')
       } else {
         await api.patch(`/unidad/${modal.data.id_unidad}`, payload)
+        showToast('success', 'Unidad actualizada correctamente.')
       }
       closeModal(); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
 
@@ -161,10 +187,11 @@ export function UnidadesPage() {
     setDeleting(true)
     try {
       await api.delete(`/unidad/${deleteTarget.id_unidad}`)
+      showToast('success', 'Unidad eliminada correctamente.')
       setDeleteTarget(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
   }
 
@@ -242,7 +269,9 @@ export function UnidadesPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Unidades" description="Activos físicos registrados por código de placa o serial" />
 
       {materialFiltro && (
@@ -259,6 +288,28 @@ export function UnidadesPage() {
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               color: '#2563eb', fontSize: 13, fontWeight: 600, padding: '2px 8px',
+              borderRadius: 6,
+            }}
+          >
+            × Ver todas
+          </button>
+        </div>
+      )}
+
+      {ubicacionFiltro && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderRadius: 10, marginBottom: 16,
+          background: '#f5f3ff', border: '1px solid #ddd6fe',
+        }}>
+          <span style={{ fontSize: 13, color: '#5b21b6' }}>
+            Ubicación: <strong>{ubicacionFiltro.nombre}</strong>
+          </span>
+          <button
+            onClick={() => navigate('/inventario/unidades')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#7c3aed', fontSize: 13, fontWeight: 600, padding: '2px 8px',
               borderRadius: 6,
             }}
           >
@@ -331,6 +382,7 @@ export function UnidadesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva unidad' : `Editar unidad — ${modal?.data?.codigo_unidad ?? ''}`}
         footer={
           <>
@@ -344,18 +396,23 @@ export function UnidadesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           <FormField label="Material (activo)" required>
-            <AppSelect size="sm" value={form.id_material} onChange={e => set('id_material', e.target.value)}>
-              <option value="">— Seleccionar material —</option>
-              {materialesNoConsumibles.map(m => (
-                <option key={m.id} value={m.id}>{m.nombre}</option>
-              ))}
-            </AppSelect>
+            <SearchableSelect
+              size="sm"
+              value={form.id_material}
+              placeholder="— Seleccionar material —"
+              options={materialesNoConsumibles.map(m => ({ value: m.id, label: m.nombre }))}
+              onChange={v => set('id_material', v)}
+            />
           </FormField>
 
           {materialesNoConsumibles.length === 0 && (
-            <AlertBanner variant="warning">
+            <div style={{
+              background: '#fffbeb', border: '1px solid #fde68a',
+              borderRadius: 8, padding: '10px 14px',
+              fontSize: 13, color: '#92400e',
+            }}>
               No hay materiales de tipo "No Consumible" registrados. Crea uno primero en el módulo de Materiales.
-            </AlertBanner>
+            </div>
           )}
 
           <FormField label="Código / Placa / Serial" required>
@@ -365,20 +422,26 @@ export function UnidadesPage() {
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
-              <AppSelect size="sm" value={form.id_responsable} onChange={e => set('id_responsable', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_responsable}
+                placeholder="— Seleccionar —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => set('id_responsable', v)}
+              />
             </FormField>
             <FormField label="Ubicación" required>
-              <AppSelect size="sm" value={form.id_ubicacion} onChange={e => set('id_ubicacion', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {ubicaciones.map(u => (
-                  <option key={u.id_ubicacion} value={u.id_ubicacion}>{u.nombre}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_ubicacion}
+                placeholder="— Seleccionar —"
+                options={ubicaciones.map(u => ({ value: u.id_ubicacion, label: u.nombre }))}
+                onChange={v => setForm(p => ({
+                  ...p,
+                  id_ubicacion: v,
+                  id_ficha: bodegaUbicacionIds.has(v) ? p.id_ficha : '',
+                }))}
+              />
             </FormField>
           </div>
 
@@ -390,16 +453,18 @@ export function UnidadesPage() {
             </AppSelect>
           </FormField>
 
-          <FormField label="Ficha asignada" hint="Opcional — ficha a la que pertenece esta unidad">
-            <AppSelect size="sm" value={form.id_ficha} onChange={e => set('id_ficha', e.target.value)}>
-              <option value="">— Sin ficha —</option>
-              {fichas.map(f => (
-                <option key={f.id_ficha} value={f.id_ficha}>{f.codigo_ficha}</option>
-              ))}
-            </AppSelect>
-          </FormField>
+          {bodegaUbicacionIds.has(String(form.id_ubicacion)) && (
+            <FormField label="Ficha asignada" required hint="Esta ubicación es una bodega — la ficha es obligatoria">
+              <SearchableSelect
+                size="sm"
+                value={form.id_ficha}
+                placeholder="— Seleccionar ficha —"
+                options={fichas.map(f => ({ value: f.id_ficha, label: f.codigo_ficha }))}
+                onChange={v => set('id_ficha', v)}
+              />
+            </FormField>
+          )}
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -417,5 +482,6 @@ export function UnidadesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

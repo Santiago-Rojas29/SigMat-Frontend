@@ -244,3 +244,27 @@
 .dt-pg-btn:not(.dt-pg-btn--active):not(:disabled):hover {
   background: #F3F4F6;
 }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .dt-toolbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+    min-height: unset;
+  }
+  .dt-search-wrap {
+    max-width: 100%;
+    width: 100%;
+    order: 10;
+  }
+  .dt-th, .dt-td {
+    padding: 9px 10px;
+  }
+  .dt-pagination {
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

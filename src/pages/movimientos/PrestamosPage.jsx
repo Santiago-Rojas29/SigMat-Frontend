@@ -4,8 +4,10 @@ import { DataTable } from '../../components/organisms/DataTable'
 import { AppModal } from '../../components/organisms/AppModal'
 import { AppButton } from '../../components/atoms/AppButton'
 import { Badge } from '../../components/atoms/Badge'
-import { AlertBanner } from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
+import { AppDateInput } from '../../components/atoms/AppDateInput'
 import { useAuth } from '../../context/AuthContext'
+import { useSocket } from '../../context/SocketContext'
 import api from '../../services/api'
 
 const ESTADOS = {
@@ -56,6 +58,11 @@ function Row({ label, value }) {
 
 const CREAR_INIT = { id_solicitud: '', fecha_limite: '', observaciones: '' }
 const ENT_INIT   = { fecha_entrega: '', observaciones: '' }
+function nowLocal() {
+  const d = new Date()
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 const DEV_INIT   = { fecha_devolucion: '', condicion: 'bueno', observaciones: '' }
 
 export function PrestamosPage() {
@@ -65,6 +72,8 @@ export function PrestamosPage() {
   const [validaciones,       setValidaciones]       = useState([])
   const [solicitudes,        setSolicitudes]        = useState([])
   const [fichas,             setFichas]             = useState([])
+  const [fichaUsuarios,      setFichaUsuarios]      = useState([])
+  const [ubicaciones,        setUbicaciones]        = useState([])
   const [entregas,           setEntregas]           = useState([])
   const [entregaUnidades,    setEntregaUnidades]    = useState([])
   const [entregaLotes,       setEntregaLotes]       = useState([])
@@ -77,7 +86,7 @@ export function PrestamosPage() {
   const [lotes,              setLotes]              = useState([])
   const [materiales,         setMateriales]         = useState([])
   const [loading,            setLoading]            = useState(true)
-  const [error,              setError]              = useState('')
+  const { showToast, toastPortal } = useToast()
 
   const [filterKey,  setFilterKey]  = useState(null)
 
@@ -101,10 +110,10 @@ export function PrestamosPage() {
   const [devLCant,   setDevLCant]   = useState({})
   const [devSaving,  setDevSaving]  = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma] = await Promise.all([
+      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma, fu, ub] = await Promise.all([
         api.get('/prestamo'),
         api.get('/validacion'),
         api.get('/solicitud'),
@@ -120,6 +129,8 @@ export function PrestamosPage() {
         api.get('/unidad'),
         api.get('/lote'),
         api.get('/material'),
+        api.get('/ficha-usuario'),
+        api.get('/ubicacion'),
       ])
       setPrestamos(pr.data)
       setValidaciones(va.data)
@@ -136,8 +147,10 @@ export function PrestamosPage() {
       setUnidades(un.data)
       setLotes(lo.data)
       setMateriales(ma.data)
+      setFichaUsuarios(fu.data)
+      setUbicaciones(ub.data)
     } catch {
-      setError('Error al cargar los datos')
+      if (!silent) showToast('error', 'Error al cargar los datos')
     } finally {
       setLoading(false)
     }
@@ -145,11 +158,20 @@ export function PrestamosPage() {
 
   useEffect(() => { load() }, [load])
 
+  const socket = useSocket()
+  useEffect(() => {
+    if (!socket) return
+    const handler = () => load(true)
+    socket.on('prestamo_actualizado', handler)
+    return () => { socket.off('prestamo_actualizado', handler) }
+  }, [socket, load])
+
   const prestamosRicos = useMemo(() => prestamos.map(p => {
     const val  = validaciones.find(v => v.id === p.id_validacion)
     const sol  = val ? solicitudes.find(s => s.id_solicitud === val.id_solicitud) : null
     const usu  = usuarios.find(u => u.id === p.id_usuario)
-    const fic  = sol ? fichas.find(f => f.id_ficha === sol.id_ficha) : null
+    const fichaRel = fichaUsuarios.find(fu => fu.id_usuario === p.id_usuario)
+    const fic  = fichaRel ? fichas.find(f => f.id_ficha === fichaRel.id_ficha) : null
     const ent  = entregas.find(e => String(e.id_prestamo) === String(p.id))
 
     const sUs  = sol ? solicitudUnidades.filter(su => su.id_solicitud === sol.id_solicitud) : []
@@ -164,6 +186,7 @@ export function PrestamosPage() {
     const dUs = dev ? devolucionUnidades.filter(du => du.id_devolucion === dev.id) : []
 
     const enrich = (id_mat) => materiales.find(m => m.id === id_mat)
+    const ub = (id_ub) => ubicaciones.find(x => x.id_ubicacion === id_ub)
 
     return {
       ...p,
@@ -178,13 +201,13 @@ export function PrestamosPage() {
       _numItems: sUs.length + sLs.length,
       _usuNombre: usu ? `${usu.nombres} ${usu.apellidos}`.trim() : '—',
       _ficCodigo: fic?.codigo_ficha ?? '—',
-      _sUs: sUs.map(su => { const u = unidades.find(x => x.id_unidad === su.id_unidad); return { ...su, _u: u, _m: enrich(u?.id_material) } }),
-      _sLs: sLs.map(sl => { const l = lotes.find(x => x.id_lote === sl.id_lote);       return { ...sl, _l: l, _m: enrich(l?.id_material) } }),
-      _eUs: eUs.map(eu => { const u = unidades.find(x => x.id_unidad === eu.id_unidad); return { ...eu, _u: u, _m: enrich(u?.id_material) } }),
-      _eLs: eLs.map(el => { const l = lotes.find(x => x.id_lote === el.id_lote);       return { ...el, _l: l, _m: enrich(l?.id_material) } }),
+      _sUs: sUs.map(su => { const u = unidades.find(x => x.id_unidad === su.id_unidad); return { ...su, _u: u, _m: enrich(u?.id_material), _ub: ub(u?.id_ubicacion) } }),
+      _sLs: sLs.map(sl => { const l = lotes.find(x => x.id_lote === sl.id_lote);       return { ...sl, _l: l, _m: enrich(l?.id_material), _ub: ub(l?.id_ubicacion) } }),
+      _eUs: eUs.map(eu => { const u = unidades.find(x => x.id_unidad === eu.id_unidad); return { ...eu, _u: u, _m: enrich(u?.id_material), _ub: ub(u?.id_ubicacion) } }),
+      _eLs: eLs.map(el => { const l = lotes.find(x => x.id_lote === el.id_lote);       return { ...el, _l: l, _m: enrich(l?.id_material), _ub: ub(l?.id_ubicacion) } }),
       _dUs: dUs.map(du => { const u = unidades.find(x => x.id_unidad === du.id_unidad); return { ...du, _u: u } }),
     }
-  }), [prestamos, validaciones, solicitudes, fichas, entregas, entregaUnidades, entregaLotes,
+  }), [prestamos, validaciones, solicitudes, fichas, fichaUsuarios, ubicaciones, entregas, entregaUnidades, entregaLotes,
        devoluciones, devolucionUnidades, solicitudUnidades, solicitudLotes,
        usuarios, unidades, lotes, materiales])
 
@@ -229,7 +252,7 @@ export function PrestamosPage() {
   const openEntrega = (p) => { setEntPre(p); setEntForm(ENT_INIT); setEntOpen(true) }
   const openDevolucion = (p) => {
     setDevPre(p)
-    setDevForm(DEV_INIT)
+    setDevForm({ ...DEV_INIT, fecha_devolucion: nowLocal() })
     const cond = {}; p._eUs.forEach(eu => { cond[eu.id_unidad] = 'bueno' }); setDevUCond(cond)
     const cant = {}; p._eLs.forEach(el => { cant[el.id_lote] = el.cantidad_entregada }); setDevLCant(cant)
     setDevOpen(true)
@@ -252,9 +275,10 @@ export function PrestamosPage() {
         fecha_limite:  new Date(crearForm.fecha_limite).toISOString(),
         estado:        'activo',
       })
+      showToast('success', 'Préstamo creado correctamente.')
       setCrearOpen(false)
       load()
-    } catch { setError('Error al crear el préstamo') }
+    } catch { showToast('error', 'Error al crear el préstamo') }
     finally { setCrearSaving(false) }
   }
 
@@ -275,8 +299,9 @@ export function PrestamosPage() {
           cantidad_entregada: sl.cantidad_solicitada, cantidad_devuelta: 0,
         })),
       ])
+      showToast('success', 'Entrega registrada correctamente.')
       setEntOpen(false); load()
-    } catch { setError('Error al registrar la entrega') }
+    } catch { showToast('error', 'Error al registrar la entrega') }
     finally { setEntSaving(false) }
   }
 
@@ -300,8 +325,9 @@ export function PrestamosPage() {
         })),
       ])
       await api.patch(`/prestamo/${devPre.id}`, { estado: 'finalizado' })
+      showToast('success', 'Devolución registrada correctamente.')
       setDevOpen(false); load()
-    } catch { setError('Error al registrar la devolución') }
+    } catch { showToast('error', 'Error al registrar la devolución') }
     finally { setDevSaving(false) }
   }
 
@@ -357,10 +383,10 @@ export function PrestamosPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Préstamos" description="Gestión de préstamos y devoluciones de materiales" />
-
-      {error && <AlertBanner type="error" message={error} onClose={() => setError('')} style={{ marginBottom: 20 }} />}
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {CARDS_DEF.map(card => {
@@ -433,10 +459,9 @@ export function PrestamosPage() {
             </div>
             <div>
               <label style={lbl}>Fecha límite de devolución *</label>
-              <input type="date" value={crearForm.fecha_limite}
+              <AppDateInput value={crearForm.fecha_limite}
                 min={new Date().toISOString().slice(0, 10)}
-                onChange={e => setCrearForm(p => ({ ...p, fecha_limite: e.target.value }))}
-                style={inp} />
+                onChange={e => setCrearForm(p => ({ ...p, fecha_limite: e.target.value }))} />
             </div>
             <div>
               <label style={lbl}>Observaciones</label>
@@ -504,8 +529,8 @@ export function PrestamosPage() {
             </div>
             <div>
               <label style={lbl}>Fecha de entrega *</label>
-              <input type="date" value={entForm.fecha_entrega}
-                onChange={e => setEntForm(p => ({ ...p, fecha_entrega: e.target.value }))} style={inp} />
+              <AppDateInput value={entForm.fecha_entrega}
+                onChange={e => setEntForm(p => ({ ...p, fecha_entrega: e.target.value }))} />
             </div>
             <div>
               <label style={lbl}>Observaciones</label>
@@ -558,8 +583,8 @@ export function PrestamosPage() {
             </div>
             <div>
               <label style={lbl}>Fecha de devolución *</label>
-              <input type="date" value={devForm.fecha_devolucion}
-                onChange={e => setDevForm(p => ({ ...p, fecha_devolucion: e.target.value }))} style={inp} />
+              <AppDateInput showTime value={devForm.fecha_devolucion}
+                onChange={e => setDevForm(p => ({ ...p, fecha_devolucion: e.target.value }))} />
             </div>
             <div>
               <label style={lbl}>Condición general</label>
@@ -627,7 +652,11 @@ export function PrestamosPage() {
                 <Row label="Solicitante" value={detailPre._usu ? `${detailPre._usu.nombres} ${detailPre._usu.apellidos}` : '—'} />
                 <Row label="Ficha" value={detailPre._fic?.codigo_ficha ?? '—'} />
                 <Row label="Tipo solicitud" value={detailPre._sol?.tipo_prestamo ?? '—'} />
-                <Row label="Fecha límite" value={fmtFecha(detailPre.fecha_limite)} />
+                <Row label="Fecha límite" value={
+                  detailPre.fecha_limite
+                    ? new Date(detailPre.fecha_limite).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '—'
+                } />
                 {detailPre._val?.observaciones && <Row label="Observaciones" value={detailPre._val.observaciones} />}
               </div>
             </div>
@@ -638,13 +667,15 @@ export function PrestamosPage() {
                 {detailPre._sUs.map((su, i) => (
                   <div key={i} style={itemRow}>
                     <code style={code('blue')}>{su._u?.codigo_unidad ?? su.id_unidad}</code>
-                    <span style={{ fontSize: 13 }}>{su._m?.nombre ?? '—'}</span>
+                    <span style={{ fontSize: 13, flex: 1 }}>{su._m?.nombre ?? '—'}</span>
+                    {su._ub && <span style={{ fontSize: 11.5, color: '#6b7280' }}>{su._ub.nombre}</span>}
                   </div>
                 ))}
                 {detailPre._sLs.map((sl, i) => (
                   <div key={i} style={itemRow}>
                     <code style={code('yellow')}>{sl._l?.codigo_lote ?? sl.id_lote}</code>
                     <span style={{ fontSize: 13, flex: 1 }}>{sl._m?.nombre ?? '—'}</span>
+                    {sl._ub && <span style={{ fontSize: 11.5, color: '#6b7280' }}>{sl._ub.nombre}</span>}
                     <span style={{ fontSize: 12, color: '#6b7280' }}>× {sl.cantidad_solicitada}</span>
                   </div>
                 ))}
@@ -661,13 +692,15 @@ export function PrestamosPage() {
                 {detailPre._eUs.map((eu, i) => (
                   <div key={i} style={itemRow}>
                     <code style={code('blue')}>{eu._u?.codigo_unidad ?? eu.id_unidad}</code>
-                    <span style={{ fontSize: 13 }}>{eu._m?.nombre ?? '—'}</span>
+                    <span style={{ fontSize: 13, flex: 1 }}>{eu._m?.nombre ?? '—'}</span>
+                    {eu._ub && <span style={{ fontSize: 11.5, color: '#6b7280' }}>{eu._ub.nombre}</span>}
                   </div>
                 ))}
                 {detailPre._eLs.map((el, i) => (
                   <div key={i} style={itemRow}>
                     <code style={code('yellow')}>{el._l?.codigo_lote ?? el.id_lote}</code>
                     <span style={{ fontSize: 13, flex: 1 }}>{el._m?.nombre ?? '—'}</span>
+                    {el._ub && <span style={{ fontSize: 11.5, color: '#6b7280' }}>{el._ub.nombre}</span>}
                     <span style={{ fontSize: 12, color: '#6b7280' }}>Entregado: {el.cantidad_entregada} · Devuelto: {el.cantidad_devuelta}</span>
                   </div>
                 ))}
@@ -678,7 +711,11 @@ export function PrestamosPage() {
               <div>
                 <div style={secTit}>Devolución</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
-                  <Row label="Fecha devolución" value={fmtFecha(detailPre._dev.fecha_devolucion)} />
+                  <Row label="Fecha devolución" value={
+                    detailPre._dev.fecha_devolucion
+                      ? new Date(detailPre._dev.fecha_devolucion).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                      : '—'
+                  } />
                   <Row label="Condición" value={
                     <Badge variant={COND_DEV[detailPre._dev.condicion]?.variant ?? 'default'}>
                       {COND_DEV[detailPre._dev.condicion]?.label ?? detailPre._dev.condicion}
@@ -708,6 +745,7 @@ export function PrestamosPage() {
         )}
       </AppModal>
     </div>
+    </>
   )
 }
 

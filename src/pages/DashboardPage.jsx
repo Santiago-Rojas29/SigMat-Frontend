@@ -72,7 +72,16 @@ export function DashboardPage() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+    <div style={{ width: '100%' }}>
+      <style>{`
+        .dash-grid { display: grid; gap: 16px; margin-bottom: 16px; }
+        .dash-row1 { grid-template-columns: 1fr 1.4fr; }
+        .dash-row2 { grid-template-columns: 1.5fr 1fr; }
+        .dash-row3 { grid-template-columns: 1fr 1fr;   }
+        @media (max-width: 960px) {
+          .dash-row1, .dash-row2, .dash-row3 { grid-template-columns: 1fr; }
+        }
+      `}</style>
 
       {/* Welcome banner */}
       <div
@@ -138,20 +147,20 @@ export function DashboardPage() {
       {/* KPI Cards */}
       <KpiCards kpis={stats?.kpis} loading={loadingStats} />
 
-      {/* Row 1: Materiales no devueltos + Solicitudes por mes (auto-fetch con selector año) */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1.4fr', gap:16, marginBottom:16 }}>
+      {/* Row 1: Materiales no devueltos + Solicitudes por mes */}
+      <div className="dash-grid dash-row1">
         <MaterialesNoDevueltosChart data={stats?.materialesNoDevueltos} loading={loadingStats} />
         <SolicitudesMesChart />
       </div>
 
       {/* Row 2: Materiales horizontales + Incidencias */}
-      <div style={{ display:'grid', gridTemplateColumns:'1.5fr 1fr', gap:16, marginBottom:16 }}>
+      <div className="dash-grid dash-row2">
         <MaterialesChart   data={stats?.materialesSolicitados} loading={loadingStats} />
         <IncidenciasChart  data={stats?.incidenciasTipo}       loading={loadingStats} />
       </div>
 
       {/* Row 3: Stock crítico + Morosos */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+      <div className="dash-grid dash-row3">
         <StockCriticoList data={stats?.stockCritico}    loading={loadingStats} />
         <MorososTable     data={stats?.usuariosMorosos} loading={loadingStats} />
       </div>

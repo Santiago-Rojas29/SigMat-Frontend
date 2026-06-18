@@ -1,46 +1,51 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FormField }    from '../molecules/FormField'
-import { AlertBanner }  from '../molecules/AlertBanner'
 import { AppButton }    from '../atoms/AppButton'
 import { AppInput }     from '../atoms/AppInput'
 import { AppIcon }      from '../atoms/AppIcon'
 import { useAuth }      from '../../context/AuthContext'
 import { loginRequest } from '../../services/auth.service'
+import { useToast }     from '../../hooks/useToast'
 import sigmatLogo       from '../../assets/sigmat-logo.png'
 import './LoginForm.css'
 
 export function LoginForm() {
   const navigate = useNavigate()
   const { login } = useAuth()
+  const { showToast, toastPortal } = useToast()
 
   const [correo, setCorreo] = useState('')
   const [contrasena, setContrasena] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!correo || !contrasena) {
-      setError('Por favor completa todos los campos.')
+      showToast('error', 'Por favor completa todos los campos.')
       return
     }
     setLoading(true)
-    setError('')
     try {
       const result = await loginRequest({ correo, contrasena })
       login(result.access_token, result.user)
-      navigate('/dashboard')
-    } catch {
-      setError('Correo o contraseña incorrectos.')
+      navigate('/dashboard', { state: { loginSuccess: true } })
+    } catch (err) {
+      if (err?.response?.status === 403) {
+        showToast('error', 'Tu cuenta está inactiva. Contacta al administrador.')
+      } else {
+        showToast('error', 'Correo o contraseña incorrectos. Verifica tus datos.')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="login-fade-up" style={{ width: '100%', maxWidth: 420, padding: '0 8px' }}>
+    <>
+      {toastPortal}
+      <div className="login-fade-up" style={{ width: '100%', maxWidth: 420, padding: '0 8px' }}>
 
       {/* Logo SIGMAT */}
       <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'center' }}>
@@ -93,8 +98,6 @@ export function LoginForm() {
           </button>
         </div>
 
-        {error && <AlertBanner variant="error">{error}</AlertBanner>}
-
         <AppButton type="submit" loading={loading} fullWidth style={{ marginTop: 4, height: 50, fontSize: 15.5 }}>
           Iniciar sesión
         </AppButton>
@@ -104,6 +107,7 @@ export function LoginForm() {
         ¿Necesitas ayuda?{' '}
         <span style={{ color: '#39A900', cursor: 'pointer', fontWeight: 500 }}>Contacta al administrador</span>
       </p>
-    </div>
+      </div>
+    </>
   )
 }

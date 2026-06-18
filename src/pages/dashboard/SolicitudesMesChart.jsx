@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import api from '../../services/api'
+import { AppSelect } from '../../components/atoms/AppSelect'
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 const MESES_LARGO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -11,12 +12,6 @@ const CURRENT_YEAR  = new Date().getFullYear()
 const CURRENT_MONTH = new Date().getMonth() + 1
 const YEARS = [CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR]
 
-const SELECT_STYLE = {
-  fontSize: 12, fontWeight: 600, color: '#374151',
-  border: '1px solid #e5e7eb', borderRadius: 8,
-  padding: '5px 8px', background: '#fff', cursor: 'pointer',
-  outline: 'none',
-}
 
 export function SolicitudesMesChart() {
   const [anio,    setAnio]    = useState(CURRENT_YEAR)
@@ -59,18 +54,18 @@ export function SolicitudesMesChart() {
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {/* Año */}
-          <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={SELECT_STYLE}>
-            {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <AppSelect size="sm" value={anio} onChange={e => setAnio(Number(e.target.value))}
+            style={{ minWidth: 80 }}>
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </AppSelect>
 
-          {/* Mes */}
-          <select value={mes} onChange={(e) => setMes(Number(e.target.value))} style={SELECT_STYLE}>
+          <AppSelect size="sm" value={mes} onChange={e => setMes(Number(e.target.value))}
+            style={{ minWidth: 110 }}>
             <option value={0}>Todos</option>
             {MESES_LARGO.map((m, i) => (
               <option key={i + 1} value={i + 1}>{m}</option>
             ))}
-          </select>
+          </AppSelect>
         </div>
       </div>
 

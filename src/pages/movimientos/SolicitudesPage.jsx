@@ -1,15 +1,19 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageHeader }    from '../../components/molecules/PageHeader'
-import { DataTable }     from '../../components/organisms/DataTable'
-import { AppModal }      from '../../components/organisms/AppModal'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { Badge }         from '../../components/atoms/Badge'
-import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
-import { useAuth }       from '../../context/AuthContext'
-import { usePermissions } from '../../context/PermissionsContext'
-import api               from '../../services/api'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { AppDateInput }     from '../../components/atoms/AppDateInput'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { useToast }         from '../../hooks/useToast'
+import { useAuth }          from '../../context/AuthContext'
+import { usePermissions }   from '../../context/PermissionsContext'
+import { useSocket }        from '../../context/SocketContext'
+import api                  from '../../services/api'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -69,6 +73,7 @@ const FORM_INIT = {
   id_instructor: '',
   id_bodega: '',
   observaciones: '',
+  id_aprendices: [],
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -113,16 +118,20 @@ export function SolicitudesPage() {
 
   // ── Data ──────────────────────────────────────────────────────────────────
 
-  const [solicitudes,      setSolicitudes]      = useState([])
-  const [solicitudLotes,   setSolicitudLotes]   = useState([])
-  const [solicitudUnidades,setSolicitudUnidades] = useState([])
-  const [usuarios,         setUsuarios]         = useState([])
-  const [roles,            setRoles]            = useState([])
-  const [lotes,            setLotes]            = useState([])
-  const [unidades,         setUnidades]         = useState([])
-  const [materiales,       setMateriales]       = useState([])
-  const [loading,          setLoading]          = useState(true)
-  const [error,            setError]            = useState('')
+  const [solicitudes,        setSolicitudes]        = useState([])
+  const [solicitudLotes,     setSolicitudLotes]     = useState([])
+  const [solicitudUnidades,  setSolicitudUnidades]  = useState([])
+  const [solicitudAprendices,setSolicitudAprendices] = useState([])
+  const [usuarios,           setUsuarios]           = useState([])
+  const [roles,              setRoles]              = useState([])
+  const [fichaUsuarios,      setFichaUsuarios]      = useState([])
+  const [lotes,              setLotes]              = useState([])
+  const [unidades,           setUnidades]           = useState([])
+  const [materiales,         setMateriales]         = useState([])
+  const [fichas,             setFichas]             = useState([])
+  const [ubicaciones,        setUbicaciones]        = useState([])
+  const [loading,            setLoading]            = useState(true)
+  const { showToast, toastPortal } = useToast()
 
   // ── UI state ──────────────────────────────────────────────────────────────
 
@@ -134,11 +143,12 @@ export function SolicitudesPage() {
   const [form,         setForm]         = useState(FORM_INIT)
   const [saving,       setSaving]       = useState(false)
 
-  const [selUnidades,  setSelUnidades]  = useState([])
-  const [selLotes,     setSelLotes]     = useState([])
-  const [addUnidadId,  setAddUnidadId]  = useState('')
-  const [addLoteId,    setAddLoteId]    = useState('')
-  const [addLoteCant,  setAddLoteCant]  = useState(1)
+  const [selUnidades,   setSelUnidades]   = useState([])
+  const [selLotes,      setSelLotes]      = useState([])
+  const [addUnidadId,   setAddUnidadId]   = useState('')
+  const [addLoteId,     setAddLoteId]     = useState('')
+  const [addLoteCant,   setAddLoteCant]   = useState(1)
+  const [addAprendizId, setAddAprendizId] = useState('')
 
   const [rejectModal,   setRejectModal]   = useState({ open: false, id: '', motivo: '' })
   const [confirmModal,  setConfirmModal]  = useState({ open: false, id: '', type: '', body: null, title: '', desc: '', variant: 'primary' })
@@ -148,35 +158,51 @@ export function SolicitudesPage() {
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [s, sl, su, u, r, l, un, m] = await Promise.all([
+      const [s, sl, su, sa, u, r, fu, l, un, m, fi, ub] = await Promise.all([
         api.get('/solicitud'),
         api.get('/solicitud-lote'),
         api.get('/solicitud-unidad'),
+        api.get('/solicitud-aprendiz'),
         api.get('/usuario'),
         api.get('/rol'),
+        api.get('/ficha-usuario'),
         api.get('/lote'),
         api.get('/unidad'),
         api.get('/material'),
+        api.get('/ficha'),
+        api.get('/ubicacion'),
       ])
       setSolicitudes(s.data)
       setSolicitudLotes(sl.data)
       setSolicitudUnidades(su.data)
+      setSolicitudAprendices(sa.data)
       setUsuarios(u.data)
       setRoles(r.data)
+      setFichaUsuarios(fu.data)
       setLotes(l.data)
       setUnidades(un.data)
       setMateriales(m.data)
+      setFichas(fi.data)
+      setUbicaciones(ub.data)
     } catch {
-      setError('Error al cargar los datos')
+      if (!silent) showToast('error', 'Error al cargar los datos')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const socket = useSocket()
+  useEffect(() => {
+    if (!socket) return
+    const handler = () => load(true)
+    socket.on('solicitud_actualizado', handler)
+    return () => { socket.off('solicitud_actualizado', handler) }
+  }, [socket, load])
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -199,27 +225,53 @@ export function SolicitudesPage() {
     return usuarios.filter(u => u.id_rol === rolBodega.id)
   }, [usuarios, roles])
 
+  const misAprendices = useMemo(() => {
+    if (!user || myRoleName === 'Aprendiz') return []
+    const misFichas = fichaUsuarios
+      .filter(fu => fu.id_usuario === user.id && fu.rol_en_ficha === 'instructor')
+      .map(fu => fu.id_ficha)
+    if (misFichas.length === 0) return []
+    const idsAprendices = [...new Set(
+      fichaUsuarios
+        .filter(fu => misFichas.includes(fu.id_ficha) && fu.rol_en_ficha === 'aprendiz')
+        .map(fu => fu.id_usuario)
+    )]
+    return idsAprendices.map(id => usuarios.find(u => u.id === id)).filter(Boolean)
+  }, [fichaUsuarios, usuarios, user, myRoleName])
+
   const solicitudesRicas = useMemo(() => solicitudes.map(s => {
     const _solicitante = usuarios.find(u => u.id === s.id_solicitante)
     const _instructor  = usuarios.find(u => u.id === s.id_instructor)
     const _admin       = usuarios.find(u => u.id === s.id_admin)
     const _bodega      = usuarios.find(u => u.id === s.id_bodega)
+    const fichaRel     = fichaUsuarios.find(fu => fu.id_usuario === s.id_solicitante)
+    const _ficha       = fichaRel ? fichas.find(f => f.id_ficha === fichaRel.id_ficha) : null
     return {
       ...s,
       _solicitante,
       _instructor,
       _admin,
       _bodega,
+      _ficha,
       _solicitanteNombre: fmtNombre(_solicitante),
       _destinoNombre: s.tipo_flujo === 'aprendiz' ? fmtNombre(_instructor) : fmtNombre(_bodega),
-      _lotes:    solicitudLotes
+      _lotes: solicitudLotes
         .filter(sl => sl.id_solicitud === s.id_solicitud)
-        .map(sl => ({ ...sl, _lote: lotes.find(l => l.id_lote === sl.id_lote), _material: materiales.find(m => m.id === lotes.find(l => l.id_lote === sl.id_lote)?.id_material) })),
+        .map(sl => {
+          const l = lotes.find(l => l.id_lote === sl.id_lote)
+          return { ...sl, _lote: l, _material: materiales.find(m => m.id === l?.id_material), _ubicacion: ubicaciones.find(ub => ub.id_ubicacion === l?.id_ubicacion) }
+        }),
       _unidades: solicitudUnidades
         .filter(su => su.id_solicitud === s.id_solicitud)
-        .map(su => ({ ...su, _unidad: unidades.find(u => u.id_unidad === su.id_unidad), _material: materiales.find(m => m.id === unidades.find(u => u.id_unidad === su.id_unidad)?.id_material) })),
+        .map(su => {
+          const u = unidades.find(u => u.id_unidad === su.id_unidad)
+          return { ...su, _unidad: u, _material: materiales.find(m => m.id === u?.id_material), _ubicacion: ubicaciones.find(ub => ub.id_ubicacion === u?.id_ubicacion) }
+        }),
+      _aprendices: solicitudAprendices
+        .filter(sa => sa.id_solicitud === s.id_solicitud)
+        .map(sa => ({ ...sa, _aprendiz: usuarios.find(u => u.id === sa.id_aprendiz) })),
     }
-  }), [solicitudes, solicitudLotes, solicitudUnidades, usuarios, lotes, unidades, materiales])
+  }), [solicitudes, solicitudLotes, solicitudUnidades, solicitudAprendices, usuarios, fichaUsuarios, fichas, ubicaciones, lotes, unidades, materiales])
 
   const counts = useMemo(() => {
     const base = { total: solicitudesRicas.length, en_proceso: 0 }
@@ -274,12 +326,13 @@ export function SolicitudesPage() {
     try {
       if (body) await api.patch(url, body)
       else      await api.patch(url)
+      showToast('success', 'Acción realizada correctamente.')
       setConfirmModal(p => ({ ...p, open: false }))
       setRejectModal({ open: false, id: '', motivo: '' })
       load()
     } catch (err) {
       const msg = err?.response?.data?.message
-      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al procesar la acción'))
+      showToast('error', Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al procesar la acción'))
     } finally { setActioning(false) }
   }
 
@@ -302,7 +355,7 @@ export function SolicitudesPage() {
   const handleEntregar = async () => {
     const tieneUnidades = (entregarModal.sol?._unidades?.length ?? 0) > 0
     if (tieneUnidades && !entregarForm.fecha_limite) {
-      setError('Debes seleccionar una fecha límite de devolución')
+      showToast('error', 'Debes seleccionar una fecha límite de devolución')
       return
     }
     setActioning(true)
@@ -311,18 +364,16 @@ export function SolicitudesPage() {
         id_bodega:     user.id,
         observaciones: entregarForm.observaciones || undefined,
       }
-      if (tieneUnidades && entregarForm.fecha_limite) payload.fecha_limite = entregarForm.fecha_limite
+      if (tieneUnidades && entregarForm.fecha_limite) payload.fecha_limite = new Date(entregarForm.fecha_limite).toISOString()
 
-      const { data: res } = await api.patch(`/solicitud/${entregarModal.id}/entregar`, payload)
+      await api.patch(`/solicitud/${entregarModal.id}/entregar`, payload)
+      showToast('success', 'Entrega registrada correctamente.')
       setEntregarModal({ open: false, id: '', sol: null })
       setEntregarForm({ fecha_limite: '', observaciones: '' })
       load()
-      if (res.requiere_devolucion === false) {
-        setError('')
-      }
     } catch (err) {
       const msg = err?.response?.data?.message
-      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al registrar la entrega'))
+      showToast('error', Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al registrar la entrega'))
     } finally { setActioning(false) }
   }
 
@@ -336,6 +387,7 @@ export function SolicitudesPage() {
     setAddUnidadId('')
     setAddLoteId('')
     setAddLoteCant(1)
+    setAddAprendizId('')
     setStep(1)
     setModalOpen(true)
   }
@@ -365,6 +417,16 @@ export function SolicitudesPage() {
     setAddLoteCant(1)
   }
 
+  const addAprendiz = () => {
+    if (!addAprendizId || form.id_aprendices.includes(addAprendizId)) return
+    setForm(p => ({ ...p, id_aprendices: [...p.id_aprendices, addAprendizId] }))
+    setAddAprendizId('')
+  }
+
+  const removeAprendiz = (id) => {
+    setForm(p => ({ ...p, id_aprendices: p.id_aprendices.filter(x => x !== id) }))
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -381,13 +443,15 @@ export function SolicitudesPage() {
 
       await Promise.all([
         ...selUnidades.map(u => api.post('/solicitud-unidad', { id_solicitud: sol.id_solicitud, id_unidad: u.id_unidad, id_usuario: user.id })),
-        ...selLotes.map(l => api.post('/solicitud-lote',    { id_solicitud: sol.id_solicitud, id_lote: l.id_lote, cantidad_solicitada: l._cantidad, id_usuario: user.id })),
+        ...selLotes.map(l => api.post('/solicitud-lote', { id_solicitud: sol.id_solicitud, id_lote: l.id_lote, cantidad_solicitada: l._cantidad, id_usuario: user.id })),
+        ...form.id_aprendices.map(id => api.post('/solicitud-aprendiz', { id_solicitud: sol.id_solicitud, id_aprendiz: id })),
       ])
+      showToast('success', 'Solicitud creada correctamente.')
       closeModal()
       load()
     } catch (err) {
       const msg = err?.response?.data?.message
-      setError(Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al crear la solicitud'))
+      showToast('error', Array.isArray(msg) ? msg.join('. ') : (msg ?? 'Error al crear la solicitud'))
     } finally {
       setSaving(false)
     }
@@ -481,10 +545,10 @@ export function SolicitudesPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Solicitudes" description="Gestión de solicitudes de préstamo de materiales" />
-
-      {error && <AlertBanner type="error" message={error} onClose={() => setError('')} style={{ marginBottom: 20 }} />}
 
       {/* Filter cards */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -580,22 +644,22 @@ export function SolicitudesPage() {
             {/* Tipo de préstamo */}
             <div>
               <label style={labelStyle}>Tipo de préstamo *</label>
-              <select value={form.tipo_prestamo} onChange={e => setForm(p => ({ ...p, tipo_prestamo: e.target.value }))} style={selectStyle}>
+              <AppSelect value={form.tipo_prestamo} onChange={e => setForm(p => ({ ...p, tipo_prestamo: e.target.value }))}>
                 <option value="interno">Interno — InstructorBodega aprueba directamente</option>
                 <option value="externo">Externo — pasa por Administrador primero</option>
-              </select>
+              </AppSelect>
             </div>
 
             {/* Conditional user selector */}
             {form.tipo_flujo === 'aprendiz' && (
               <div>
                 <label style={labelStyle}>Instructor de mi grupo *</label>
-                <select value={form.id_instructor} onChange={e => setForm(p => ({ ...p, id_instructor: e.target.value }))} style={selectStyle}>
-                  <option value="">Seleccionar instructor...</option>
-                  {instructores.map(u => (
-                    <option key={u.id} value={u.id}>{fmtNombre(u)}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.id_instructor}
+                  placeholder="Seleccionar instructor..."
+                  options={instructores.map(u => ({ value: u.id, label: fmtNombre(u) }))}
+                  onChange={v => setForm(p => ({ ...p, id_instructor: v }))}
+                />
                 {instructores.length === 0 && (
                   <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay instructores disponibles en el sistema.</p>
                 )}
@@ -605,15 +669,86 @@ export function SolicitudesPage() {
             {form.tipo_flujo === 'instructor' && (
               <div>
                 <label style={labelStyle}>Instructor responsable de Bodega *</label>
-                <select value={form.id_bodega} onChange={e => setForm(p => ({ ...p, id_bodega: e.target.value }))} style={selectStyle}>
-                  <option value="">Seleccionar InstructorBodega...</option>
-                  {instructoresBodega.map(u => (
-                    <option key={u.id} value={u.id}>{fmtNombre(u)}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.id_bodega}
+                  placeholder="Seleccionar InstructorBodega..."
+                  options={instructoresBodega.map(u => ({ value: u.id, label: fmtNombre(u) }))}
+                  onChange={v => setForm(p => ({ ...p, id_bodega: v }))}
+                />
                 {instructoresBodega.length === 0 && (
                   <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay InstructoresBodega registrados. Pide al administrador que cree uno.</p>
                 )}
+              </div>
+            )}
+
+            {/* Aprendices destinatarios — solo visible para instructores con aprendices en sus fichas */}
+            {form.tipo_flujo === 'instructor' && misAprendices.length > 0 && (
+              <div>
+                <label style={labelStyle}>
+                  Aprendices destinatarios
+                  <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 6 }}>(opcional)</span>
+                </label>
+                <div style={{
+                  background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                  borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
+                  {/* Selector + botón agregar */}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect
+                        value={addAprendizId}
+                        placeholder="Seleccionar aprendiz..."
+                        options={misAprendices
+                          .filter(a => !form.id_aprendices.includes(a.id))
+                          .map(a => ({ value: a.id, label: fmtNombre(a) }))}
+                        onChange={v => setAddAprendizId(v)}
+                      />
+                    </div>
+                    <AppButton size="compact" onClick={addAprendiz} disabled={!addAprendizId}>
+                      + Agregar
+                    </AppButton>
+                  </div>
+
+                  {/* Chips de aprendices seleccionados */}
+                  {form.id_aprendices.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {form.id_aprendices.map(id => {
+                        const apr = misAprendices.find(a => a.id === id)
+                        return (
+                          <div key={id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '5px 10px 5px 12px',
+                            background: '#eff6ff', border: '1.5px solid #bfdbfe',
+                            borderRadius: 20, fontSize: 12.5, fontWeight: 500, color: '#1d4ed8',
+                          }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            {fmtNombre(apr)}
+                            <button
+                              onClick={() => removeAprendiz(id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 14, padding: '0', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                              title="Quitar aprendiz"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
+                      Sin aprendices seleccionados — el material aplica de forma general.
+                    </p>
+                  )}
+
+                  <p style={{ fontSize: 11.5, color: '#6b7280', margin: 0 }}>
+                    {form.id_aprendices.length > 0
+                      ? `${form.id_aprendices.length} aprendiz(ces) seleccionado(s) de ${misAprendices.length} disponible(s).`
+                      : `Tienes ${misAprendices.length} aprendiz(ces) disponible(s) en tus fichas.`
+                    }
+                  </p>
+                </div>
               </div>
             )}
 
@@ -647,14 +782,16 @@ export function SolicitudesPage() {
                 Activos — Unidades (no consumibles)
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <select value={addUnidadId} onChange={e => setAddUnidadId(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
-                  <option value="">Seleccionar unidad disponible...</option>
-                  {unidadesDisponibles.filter(u => !selUnidades.find(s => s.id_unidad === u.id_unidad)).map(u => (
-                    <option key={u.id_unidad} value={u.id_unidad}>
-                      {u.codigo_unidad} — {u._material?.nombre ?? u.id_material}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ flex: 1 }}>
+                  <SearchableSelect
+                    value={addUnidadId}
+                    placeholder="Seleccionar unidad disponible..."
+                    options={unidadesDisponibles
+                      .filter(u => !selUnidades.find(s => s.id_unidad === u.id_unidad))
+                      .map(u => ({ value: u.id_unidad, label: `${u.codigo_unidad} — ${u._material?.nombre ?? u.id_material}` }))}
+                    onChange={v => setAddUnidadId(v)}
+                  />
+                </div>
                 <AppButton size="compact" onClick={addUnidad} disabled={!addUnidadId}>Agregar</AppButton>
               </div>
               {selUnidades.length === 0
@@ -678,14 +815,14 @@ export function SolicitudesPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
                 <div style={{ flex: 1 }}>
-                  <select value={addLoteId} onChange={e => { setAddLoteId(e.target.value); setAddLoteCant(1) }} style={selectStyle}>
-                    <option value="">Seleccionar lote con stock...</option>
-                    {lotesConStock.filter(l => !selLotes.find(s => s.id_lote === l.id_lote)).map(l => (
-                      <option key={l.id_lote} value={l.id_lote}>
-                        {l.codigo_lote} — {l._material?.nombre ?? l.id_material} (disp: {l.cantidad_disponible})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={addLoteId}
+                    placeholder="Seleccionar lote con stock..."
+                    options={lotesConStock
+                      .filter(l => !selLotes.find(s => s.id_lote === l.id_lote))
+                      .map(l => ({ value: l.id_lote, label: `${l.codigo_lote} — ${l._material?.nombre ?? l.id_material} (disp: ${l.cantidad_disponible})` }))}
+                    onChange={v => { setAddLoteId(v); setAddLoteCant(1) }}
+                  />
                 </div>
                 <input
                   type="number" min={1}
@@ -739,6 +876,7 @@ export function SolicitudesPage() {
               <Row label="Flujo"            value={<Badge variant={FLUJOS[detailSol.tipo_flujo]?.variant ?? 'default'}>{FLUJOS[detailSol.tipo_flujo]?.label ?? detailSol.tipo_flujo}</Badge>} />
               <Row label="Tipo préstamo"    value={<Badge variant={TIPOS[detailSol.tipo_prestamo]?.variant ?? 'default'}>{TIPOS[detailSol.tipo_prestamo]?.label ?? detailSol.tipo_prestamo}</Badge>} />
               <Row label="Solicitante"      value={fmtNombre(detailSol._solicitante)} />
+              {detailSol._ficha && <Row label="Ficha" value={detailSol._ficha.codigo_ficha} />}
               {detailSol.tipo_flujo === 'aprendiz' && (
                 <Row label="Instructor asignado" value={fmtNombre(detailSol._instructor)} />
               )}
@@ -781,6 +919,30 @@ export function SolicitudesPage() {
               </div>
             </div>
 
+            {/* Aprendices destinatarios */}
+            {detailSol._aprendices?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+                  Aprendices destinatarios
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {detailSol._aprendices.map((sa, i) => (
+                    <div key={i} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px',
+                      background: '#eff6ff', border: '1.5px solid #bfdbfe',
+                      borderRadius: 20, fontSize: 12.5, fontWeight: 500, color: '#1d4ed8',
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      {fmtNombre(sa._aprendiz)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Items */}
             {detailSol._unidades?.length > 0 && (
               <div>
@@ -790,12 +952,17 @@ export function SolicitudesPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {detailSol._unidades.map((su, i) => (
                     <div key={i} style={{ ...itemRowStyle, cursor: 'default' }}>
-                      <span style={{ fontSize: 13 }}>
+                      <span style={{ fontSize: 13, flex: 1 }}>
                         <code style={{ fontSize: 11.5, background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: 4 }}>
                           {su._unidad?.codigo_unidad ?? su.id_unidad}
                         </code>
                         {' '}{su._material?.nombre ?? '—'}
                       </span>
+                      {su._ubicacion && (
+                        <span style={{ fontSize: 11.5, color: '#6b7280', flexShrink: 0 }}>
+                          {su._ubicacion.nombre}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -809,13 +976,18 @@ export function SolicitudesPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {detailSol._lotes.map((sl, i) => (
                     <div key={i} style={{ ...itemRowStyle, cursor: 'default' }}>
-                      <span style={{ fontSize: 13 }}>
+                      <span style={{ fontSize: 13, flex: 1 }}>
                         <code style={{ fontSize: 11.5, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 4 }}>
                           {sl._lote?.codigo_lote ?? sl.id_lote}
                         </code>
                         {' '}{sl._material?.nombre ?? '—'}
                       </span>
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>× {sl.cantidad_solicitada}</span>
+                      {sl._ubicacion && (
+                        <span style={{ fontSize: 11.5, color: '#6b7280', flexShrink: 0 }}>
+                          {sl._ubicacion.nombre}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>× {sl.cantidad_solicitada}</span>
                     </div>
                   ))}
                 </div>
@@ -855,15 +1027,14 @@ export function SolicitudesPage() {
                   <label style={labelStyle}>
                     Fecha límite de devolución <span style={{ color: '#dc2626' }}>*</span>
                   </label>
-                  <input
-                    type="date"
+                  <AppDateInput
                     value={entregarForm.fecha_limite}
-                    min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                    min={new Date().toISOString().slice(0, 10)}
                     onChange={e => setEntregarForm(p => ({ ...p, fecha_limite: e.target.value }))}
-                    style={inputStyle}
+                    showTime
                   />
                   <span style={{ fontSize: 11.5, color: '#6b7280', marginTop: 4, display: 'block' }}>
-                    Fecha en que el solicitante debe devolver el material
+                    Fecha y hora límite de devolución del material
                   </span>
                 </div>
               )}
@@ -922,5 +1093,6 @@ export function SolicitudesPage() {
         onCancel={() => setConfirmModal(p => ({ ...p, open: false }))}
       />
     </div>
+    </>
   )
 }

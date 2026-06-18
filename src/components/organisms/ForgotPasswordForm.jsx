@@ -6,6 +6,7 @@ import { AppInput } from '../atoms/AppInput'
 import { solicitarReset, resetearContrasena } from '../../services/auth.service'
 import sigmatLogo from '../../assets/sigmat-logo.png'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { useToast }       from '../../hooks/useToast'
 
 const DURACION_CODIGO = 15 * 60 // 15 minutos en segundos
 const ESPERA_REENVIO  = 60      // segundos mínimos antes de mostrar "Reenviar"
@@ -37,8 +38,9 @@ export function ForgotPasswordForm() {
   const [showConfirm, setShowConfirm]         = useState(false)
   const [loading, setLoading]                 = useState(false)
   const [loadingReenvio, setLoadingReenvio]   = useState(false)
-  const [error, setError]                     = useState('')
   const [exito, setExito]                     = useState(false)
+
+  const { showToast, toastPortal } = useToast()
   const [segundos, setSegundos]               = useState(DURACION_CODIGO)
 
   const intervalRef = useRef(null)
@@ -59,20 +61,20 @@ export function ForgotPasswordForm() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   async function handleSolicitarReset(e) {
     e.preventDefault()
-    if (!correo) { setError('Ingresa tu correo electrónico.'); return }
-    setLoading(true); setError('')
+    if (!correo) { showToast('error', 'Ingresa tu correo electrónico.'); return }
+    setLoading(true)
     try {
       await solicitarReset(correo)
       setPaso(2)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'No se encontró una cuenta con ese correo.')
+      showToast('error', err?.response?.data?.message ?? 'No se encontró una cuenta con ese correo.')
     } finally {
       setLoading(false)
     }
   }
 
   async function handleReenviar() {
-    setLoadingReenvio(true); setError('')
+    setLoadingReenvio(true)
     try {
       await solicitarReset(correo)
       // Reinicia el contador sin salir del paso 2
@@ -83,7 +85,7 @@ export function ForgotPasswordForm() {
         setSegundos(s => (s > 0 ? s - 1 : 0))
       }, 1000)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'No se pudo reenviar el código.')
+      showToast('error', err?.response?.data?.message ?? 'No se pudo reenviar el código.')
     } finally {
       setLoadingReenvio(false)
     }
@@ -91,17 +93,17 @@ export function ForgotPasswordForm() {
 
   async function handleResetearContrasena(e) {
     e.preventDefault()
-    if (codigoExpirado) { setError('El código ha expirado. Reenvía uno nuevo.'); return }
-    if (!codigo || codigo.length !== 6) { setError('Ingresa el código de 6 dígitos.'); return }
-    if (!nuevaContrasena || nuevaContrasena.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
-    if (nuevaContrasena !== confirmar) { setError('Las contraseñas no coinciden.'); return }
-    setLoading(true); setError('')
+    if (codigoExpirado) { showToast('error', 'El código ha expirado. Reenvía uno nuevo.'); return }
+    if (!codigo || codigo.length !== 6) { showToast('error', 'Ingresa el código de 6 dígitos.'); return }
+    if (!nuevaContrasena || nuevaContrasena.length < 8) { showToast('error', 'La contraseña debe tener al menos 8 caracteres.'); return }
+    if (nuevaContrasena !== confirmar) { showToast('error', 'Las contraseñas no coinciden.'); return }
+    setLoading(true)
     try {
       await resetearContrasena(correo, codigo, nuevaContrasena)
       clearInterval(intervalRef.current)
       setExito(true)
     } catch (err) {
-      setError(err?.response?.data?.message ?? 'El código es inválido o ha expirado.')
+      showToast('error', err?.response?.data?.message ?? 'El código es inválido o ha expirado.')
     } finally {
       setLoading(false)
     }
@@ -129,6 +131,7 @@ export function ForgotPasswordForm() {
   // ── Render principal ──────────────────────────────────────────────────────
   return (
     <div style={{ width: '100%', maxWidth: 420, padding: '0 8px', animation: 'fadeUp 0.4s cubic-bezier(0.4,0,0.2,1) both' }}>
+      {toastPortal}
       <style>{`@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
       {/* Logo */}
@@ -175,7 +178,6 @@ export function ForgotPasswordForm() {
                 autoComplete="email"
               />
             </FormField>
-            {error && <ErrorBanner mensaje={error} />}
             <AppButton type="submit" loading={loading} fullWidth style={{ marginTop: 4, height: 50, fontSize: 15.5 }}>
               Enviar código
             </AppButton>
@@ -276,8 +278,6 @@ export function ForgotPasswordForm() {
               />
             </FormField>
 
-            {error && <ErrorBanner mensaje={error} />}
-
             <AppButton
               type="submit"
               loading={loading}
@@ -290,7 +290,7 @@ export function ForgotPasswordForm() {
 
             <button
               type="button"
-              onClick={() => { setPaso(1); setError(''); setCodigo('') }}
+              onClick={() => { setPaso(1); setCodigo('') }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, fontFamily: 'inherit', padding: 0 }}
             >
               ← Cambiar correo
@@ -312,13 +312,3 @@ export function ForgotPasswordForm() {
   )
 }
 
-function ErrorBanner({ mensaje }) {
-  return (
-    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#DC2626', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      {mensaje}
-    </div>
-  )
-}

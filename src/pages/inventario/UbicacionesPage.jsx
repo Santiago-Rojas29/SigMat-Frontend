@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
-import { AppButton }     from '../../components/atoms/AppButton'
-import { AppInput }      from '../../components/atoms/AppInput'
-import { AppSelect }     from '../../components/atoms/AppSelect'
-import { Badge }         from '../../components/atoms/Badge'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
 import { IconButton }    from '../../components/atoms/IconButton'
 import { FormField }     from '../../components/molecules/FormField'
 import { PageHeader }    from '../../components/molecules/PageHeader'
-import { AlertBanner }   from '../../components/molecules/AlertBanner'
+import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
@@ -25,7 +27,8 @@ const PALETA = [
 
 export function UbicacionesPage() {
   const { hasPermission } = usePermissions()
-  const isAdmin = hasPermission('administracion')
+  const isAdmin  = hasPermission('administracion')
+  const navigate = useNavigate()
 
   const [tipos,       setTipos]       = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
@@ -38,14 +41,13 @@ export function UbicacionesPage() {
   const [tipoModal,  setTipoModal]  = useState(null)
   const [tipoForm,   setTipoForm]   = useState({ nombre: '', descripcion: '' })
   const [tipoSaving, setTipoSaving] = useState(false)
-  const [tipoError,  setTipoError]  = useState(null)
+  const { showToast, toastPortal } = useToast()
   const [deleteTipo, setDeleteTipo] = useState(null)
   const [delTipo,    setDelTipo]    = useState(false)
 
   const [ubModal,  setUbModal]  = useState(null)
   const [ubForm,   setUbForm]   = useState({ nombre: '', descripcion: '', id_area: '', id_tipo_ubicacion: '', estado: 'activo', id_encargado: '' })
   const [ubSaving, setUbSaving] = useState(false)
-  const [ubError,  setUbError]  = useState(null)
   const [deleteUb, setDeleteUb] = useState(null)
   const [delUb,    setDelUb]    = useState(false)
 
@@ -103,30 +105,30 @@ export function UbicacionesPage() {
 
   const openCrearTipo = () => {
     setTipoForm({ nombre: '', descripcion: '' })
-    setTipoError(null)
     setTipoModal({ mode: 'create' })
   }
 
   const openEditTipo = (t) => {
     setTipoForm({ nombre: t.nombre, descripcion: t.descripcion })
-    setTipoError(null)
     setTipoModal({ mode: 'edit', data: t })
   }
 
   const handleSaveTipo = async () => {
-    if (!tipoForm.nombre.trim())      { setTipoError('El nombre es obligatorio.'); return }
-    if (!tipoForm.descripcion.trim()) { setTipoError('La descripción es obligatoria.'); return }
-    setTipoSaving(true); setTipoError(null)
+    if (!tipoForm.nombre.trim())      { showToast('error', 'El nombre es obligatorio.'); return }
+    if (!tipoForm.descripcion.trim()) { showToast('error', 'La descripción es obligatoria.'); return }
+    setTipoSaving(true)
     try {
       if (tipoModal.mode === 'create') {
         await api.post('/tipo-ubicacion', tipoForm)
+        showToast('success', 'Tipo de ubicación creado correctamente.')
       } else {
         await api.patch(`/tipo-ubicacion/${tipoModal.data.id_tipo_ubicacion}`, tipoForm)
+        showToast('success', 'Tipo de ubicación actualizado correctamente.')
       }
       setTipoModal(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setTipoError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setTipoSaving(false) }
   }
 
@@ -134,32 +136,31 @@ export function UbicacionesPage() {
     setDelTipo(true)
     try {
       await api.delete(`/tipo-ubicacion/${deleteTipo.id_tipo_ubicacion}`)
+      showToast('success', 'Tipo de ubicación eliminado correctamente.')
       setDeleteTipo(null)
       if (filtro === String(deleteTipo.id_tipo_ubicacion)) setFiltro(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setTipoError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelTipo(false) }
   }
 
   const openCrearUb = () => {
     setUbForm({ nombre: '', descripcion: '', estado: 'activo', id_tipo_ubicacion: filtro ?? String(tipos[0]?.id_tipo_ubicacion ?? ''), id_area: String(areas[0]?.id_area ?? ''), id_encargado: '' })
-    setUbError(null)
     setUbModal({ mode: 'create' })
   }
 
   const openEditUb = (u) => {
     setUbForm({ nombre: u.nombre, descripcion: u.descripcion, estado: u.estado, id_tipo_ubicacion: String(u.id_tipo_ubicacion), id_area: String(u.id_area), id_encargado: u.id_encargado ?? '' })
-    setUbError(null)
     setUbModal({ mode: 'edit', data: u })
   }
 
   const handleSaveUb = async () => {
-    if (!ubForm.nombre.trim())     { setUbError('El nombre es obligatorio.'); return }
-    if (!ubForm.id_tipo_ubicacion) { setUbError('Selecciona un tipo.'); return }
-    if (!ubForm.id_area)           { setUbError('Selecciona un área.'); return }
-    setUbSaving(true); setUbError(null)
+    if (!ubForm.nombre.trim())     { showToast('error', 'El nombre es obligatorio.'); return }
+    if (!ubForm.id_tipo_ubicacion) { showToast('error', 'Selecciona un tipo.'); return }
+    if (!ubForm.id_area)           { showToast('error', 'Selecciona un área.'); return }
+    setUbSaving(true)
     const payload = {
       ...ubForm,
       id_area:           String(ubForm.id_area),
@@ -169,13 +170,15 @@ export function UbicacionesPage() {
     try {
       if (ubModal.mode === 'create') {
         await api.post('/ubicacion', payload)
+        showToast('success', 'Ubicación creada correctamente.')
       } else {
         await api.patch(`/ubicacion/${ubModal.data.id_ubicacion}`, payload)
+        showToast('success', 'Ubicación actualizada correctamente.')
       }
       setUbModal(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setUbError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setUbSaving(false) }
   }
 
@@ -183,10 +186,11 @@ export function UbicacionesPage() {
     setDelUb(true)
     try {
       await api.delete(`/ubicacion/${deleteUb.id_ubicacion}`)
+      showToast('success', 'Ubicación eliminada correctamente.')
       setDeleteUb(null); loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setUbError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDelUb(false) }
   }
 
@@ -237,9 +241,23 @@ export function UbicacionesPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 90,
+      width: 180,
       render: u => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <IconButton
+            title="Ver unidades"
+            onClick={() => navigate(`/inventario/unidades?ubicacion=${u.id_ubicacion}`)}
+            style={{ color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}
+          >
+            <AppIcon name="layers" size={15} />
+          </IconButton>
+          <IconButton
+            title="Ver lotes"
+            onClick={() => navigate(`/inventario/lotes?ubicacion=${u.id_ubicacion}`)}
+            style={{ color: '#0891b2', background: '#ecfeff', border: '1px solid #a5f3fc' }}
+          >
+            <AppIcon name="package" size={15} />
+          </IconButton>
           <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><AppIcon name="edit" size={15} /></IconButton>
           {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
@@ -248,10 +266,10 @@ export function UbicacionesPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader title="Ubicaciones" description="Espacios físicos del almacén organizados por tipo" />
-
-      {error && <AlertBanner variant="error" style={{ marginBottom: 16 }}>{error}</AlertBanner>}
 
       {/* ── Cards de tipo como filtro ── */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -322,6 +340,7 @@ export function UbicacionesPage() {
       <AppModal
         isOpen={!!tipoModal}
         onClose={() => setTipoModal(null)}
+        maxWidth={640}
         title={tipoModal?.mode === 'create' ? 'Nuevo tipo de ubicación' : 'Editar tipo'}
         footer={
           <>
@@ -341,7 +360,6 @@ export function UbicacionesPage() {
             <AppInput size="sm" value={tipoForm.descripcion} placeholder="Descripción del tipo de espacio"
               onChange={e => setT('descripcion', e.target.value)} />
           </FormField>
-          {tipoError && <AlertBanner variant="error">{tipoError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -349,6 +367,7 @@ export function UbicacionesPage() {
       <AppModal
         isOpen={!!ubModal}
         onClose={() => setUbModal(null)}
+        maxWidth={640}
         title={ubModal?.mode === 'create' ? 'Nueva ubicación' : `Editar — ${ubModal?.data?.nombre ?? ''}`}
         footer={
           <>
@@ -370,26 +389,33 @@ export function UbicacionesPage() {
           </FormField>
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Tipo" required>
-              <AppSelect size="sm" value={ubForm.id_tipo_ubicacion} onChange={e => setU('id_tipo_ubicacion', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {tipos.map(t => <option key={t.id_tipo_ubicacion} value={String(t.id_tipo_ubicacion)}>{t.nombre}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_tipo_ubicacion}
+                placeholder="— Seleccionar —"
+                options={tipos.map(t => ({ value: String(t.id_tipo_ubicacion), label: t.nombre }))}
+                onChange={v => setU('id_tipo_ubicacion', v)}
+              />
             </FormField>
             <FormField label="Área" required>
-              <AppSelect size="sm" value={ubForm.id_area} onChange={e => setU('id_area', e.target.value)}>
-                <option value="">— Seleccionar —</option>
-                {areas.map(a => <option key={a.id_area} value={String(a.id_area)}>{a.nombre}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_area}
+                placeholder="— Seleccionar —"
+                options={areas.map(a => ({ value: String(a.id_area), label: a.nombre }))}
+                onChange={v => setU('id_area', v)}
+              />
             </FormField>
           </div>
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Encargado">
-              <AppSelect size="sm" value={ubForm.id_encargado} onChange={e => setU('id_encargado', e.target.value)}>
-                <option value="">— Sin encargado —</option>
-                {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
-                ))}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={ubForm.id_encargado}
+                placeholder="— Sin encargado —"
+                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                onChange={v => setU('id_encargado', v)}
+              />
             </FormField>
             <FormField label="Estado">
               <AppSelect size="sm" value={ubForm.estado} onChange={e => setU('estado', e.target.value)}>
@@ -398,7 +424,6 @@ export function UbicacionesPage() {
               </AppSelect>
             </FormField>
           </div>
-          {ubError && <AlertBanner variant="error">{ubError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -422,5 +447,6 @@ export function UbicacionesPage() {
         loading={delUb}
       />
     </div>
+    </>
   )
 }

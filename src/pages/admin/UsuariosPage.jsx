@@ -3,16 +3,16 @@ import api from '../../services/api'
 import { AppButton }             from '../../components/atoms/AppButton'
 import { AppInput }              from '../../components/atoms/AppInput'
 import { AppSelect }             from '../../components/atoms/AppSelect'
+import { SearchableSelect }      from '../../components/atoms/SearchableSelect'
 import { Badge }                 from '../../components/atoms/Badge'
 import { IconButton }            from '../../components/atoms/IconButton'
 import { FormField }             from '../../components/molecules/FormField'
 import { PageHeader }            from '../../components/molecules/PageHeader'
-import { AlertBanner }           from '../../components/molecules/AlertBanner'
+import { useToast }              from '../../hooks/useToast'
 import { ConfirmDialog }         from '../../components/molecules/ConfirmDialog'
 import { AppModal }              from '../../components/organisms/AppModal'
 import { DataTable }             from '../../components/organisms/DataTable'
-import { PermisosUsuarioModal }  from '../../components/organisms/PermisosUsuarioModal'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { AppIcon }               from '../../components/atoms/AppIcon'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -36,19 +36,18 @@ const EMPTY_FORM = {
 export function UsuariosPage() {
   const [usuarios, setUsuarios] = useState([])
   const [roles,    setRoles]    = useState([])
-  const [permisos, setPermisos] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [modal,     setModal]     = useState(null)  // null | { mode: 'create'|'edit', data? }
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
   const [showPass,  setShowPass]  = useState(false)
 
-  const [deleteTarget,   setDeleteTarget]   = useState(null)
-  const [deleting,       setDeleting]       = useState(false)
-  const [permisosTarget, setPermisosTarget] = useState(null)  // usuario seleccionado para permisos
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -56,14 +55,12 @@ export function UsuariosPage() {
     setLoading(true)
     setError(null)
     try {
-      const [uRes, rRes, pRes] = await Promise.all([
+      const [uRes, rRes] = await Promise.all([
         api.get('/usuario'),
         api.get('/rol'),
-        api.get('/permisos'),
       ])
       setUsuarios(uRes.data)
       setRoles(rRes.data)
-      setPermisos(pRes.data)
     } catch {
       setError('No se pudo cargar la información. Verifica tu conexión.')
     } finally {
@@ -82,7 +79,6 @@ export function UsuariosPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, id_rol: roles[0]?.id ?? '' })
-    setFormError(null)
     setShowPass(false)
     setModal({ mode: 'create' })
   }
@@ -94,29 +90,29 @@ export function UsuariosPage() {
       apellidos: u.apellidos, correo: u.correo,
       telefono: u.telefono, estado: u.estado, contrasena: '',
     })
-    setFormError(null)
     setShowPass(false)
     setModal({ mode: 'edit', data: u })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     setSaving(true)
-    setFormError(null)
     try {
       const payload = { ...form }
       if (modal.mode === 'edit' && !payload.contrasena) delete payload.contrasena
       if (modal.mode === 'create') {
         await api.post('/usuario', payload)
+        showToast('success', 'Usuario creado correctamente.')
       } else {
         await api.patch(`/usuario/${modal.data.id}`, payload)
+        showToast('success', 'Usuario actualizado correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -126,11 +122,12 @@ export function UsuariosPage() {
     setDeleting(true)
     try {
       await api.delete(`/usuario/${deleteTarget.id}`)
+      showToast('success', 'Usuario eliminado correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -193,16 +190,9 @@ export function UsuariosPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 110,
+      width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton
-            title="Gestionar permisos"
-            onClick={() => setPermisosTarget(u)}
-            style={{ color: '#7c3aed' }}
-          >
-            <AppIcon name="shield" size={15} />
-          </IconButton>
           <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
             <AppIcon name="edit" size={15} />
           </IconButton>
@@ -217,10 +207,12 @@ export function UsuariosPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Usuarios"
-        description="Gestión de cuentas, roles y permisos del sistema"
+        description="Gestión de cuentas y roles. Los permisos se configuran por rol en el módulo de Roles."
       />
 
       <DataTable
@@ -257,6 +249,7 @@ export function UsuariosPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nuevo usuario' : 'Editar usuario'}
         footer={
           <>
@@ -309,10 +302,13 @@ export function UsuariosPage() {
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Rol" required>
-              <AppSelect size="sm" value={form.id_rol}
-                onChange={e => set('id_rol', e.target.value)}>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </AppSelect>
+              <SearchableSelect
+                size="sm"
+                value={form.id_rol}
+                placeholder="— Seleccionar rol —"
+                options={roles.map(r => ({ value: r.id, label: r.nombre }))}
+                onChange={v => set('id_rol', v)}
+              />
             </FormField>
             <FormField label="Estado" required>
               <AppSelect size="sm" value={form.estado}
@@ -340,17 +336,8 @@ export function UsuariosPage() {
             />
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
-
-      {/* Modal de permisos del usuario */}
-      <PermisosUsuarioModal
-        isOpen={!!permisosTarget}
-        onClose={() => setPermisosTarget(null)}
-        usuario={permisosTarget}
-        permisos={permisos}
-      />
 
       {/* Confirmar eliminación */}
       <ConfirmDialog
@@ -367,5 +354,6 @@ export function UsuariosPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }

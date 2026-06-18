@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import { AppButton }      from '../../components/atoms/AppButton'
-import { AppInput }       from '../../components/atoms/AppInput'
-import { AppSelect }      from '../../components/atoms/AppSelect'
-import { Badge }          from '../../components/atoms/Badge'
-import { IconButton }     from '../../components/atoms/IconButton'
-import { FormField }      from '../../components/molecules/FormField'
-import { PageHeader }     from '../../components/molecules/PageHeader'
-import { AlertBanner }    from '../../components/molecules/AlertBanner'
-import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
-import { AppModal }       from '../../components/organisms/AppModal'
-import { DataTable }      from '../../components/organisms/DataTable'
-import { AppIcon }        from '../../components/atoms/AppIcon'
+import { AppButton }        from '../../components/atoms/AppButton'
+import { AppInput }         from '../../components/atoms/AppInput'
+import { AppSelect }        from '../../components/atoms/AppSelect'
+import { SearchableSelect } from '../../components/atoms/SearchableSelect'
+import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
+import { FormField }        from '../../components/molecules/FormField'
+import { PageHeader }       from '../../components/molecules/PageHeader'
+import { useToast }         from '../../hooks/useToast'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
+import { AppModal }         from '../../components/organisms/AppModal'
+import { DataTable }        from '../../components/organisms/DataTable'
+import { AppIcon }          from '../../components/atoms/AppIcon'
 const EMPTY_FORM = {
   id_centro: '', nombre: '', direccion: '', telefono: '', estado: 'activo',
 }
@@ -25,7 +26,8 @@ export function SedesPage() {
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
-  const [formError, setFormError] = useState(null)
+
+  const { showToast, toastPortal } = useToast()
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
@@ -57,7 +59,6 @@ export function SedesPage() {
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM })
-    setFormError(null)
     setModal({ mode: 'create' })
   }
 
@@ -66,30 +67,30 @@ export function SedesPage() {
       id_centro: s.id_centro, nombre: s.nombre,
       direccion: s.direccion, telefono: s.telefono, estado: s.estado,
     })
-    setFormError(null)
     setModal({ mode: 'edit', data: s })
   }
 
-  const closeModal = () => { setModal(null); setFormError(null) }
+  const closeModal = () => { setModal(null) }
 
   const handleSave = async () => {
     if (!form.id_centro || !form.nombre || !form.direccion || !form.telefono) {
-      setFormError('Todos los campos obligatorios deben estar llenos.')
+      showToast('error', 'Todos los campos obligatorios deben estar llenos.')
       return
     }
     setSaving(true)
-    setFormError(null)
     try {
       if (modal.mode === 'create') {
         await api.post('/sede', form)
+        showToast('success', 'Sede creada correctamente.')
       } else {
         await api.patch(`/sede/${modal.data.id_sede}`, form)
+        showToast('success', 'Sede actualizada correctamente.')
       }
       closeModal()
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally {
       setSaving(false)
     }
@@ -99,11 +100,12 @@ export function SedesPage() {
     setDeleting(true)
     try {
       await api.delete(`/sede/${deleteTarget.id_sede}`)
+      showToast('success', 'Sede eliminada correctamente.')
       setDeleteTarget(null)
       loadData()
     } catch (e) {
       const msg = e.response?.data?.message
-      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally {
       setDeleting(false)
     }
@@ -167,7 +169,9 @@ export function SedesPage() {
   ]
 
   return (
-    <div>
+    <>
+      {toastPortal}
+      <div>
       <PageHeader
         title="Sedes"
         description="Gestión de sedes de los centros de formación del SENA"
@@ -206,6 +210,7 @@ export function SedesPage() {
       <AppModal
         isOpen={!!modal}
         onClose={closeModal}
+        maxWidth={640}
         title={modal?.mode === 'create' ? 'Nueva sede' : 'Editar sede'}
         footer={
           <>
@@ -220,13 +225,13 @@ export function SedesPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Centro" required>
-            <AppSelect size="sm" value={form.id_centro}
-              onChange={e => set('id_centro', e.target.value)}>
-              <option value="">Seleccionar centro</option>
-              {centros.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </AppSelect>
+            <SearchableSelect
+              size="sm"
+              value={form.id_centro}
+              placeholder="Seleccionar centro"
+              options={centros.map(c => ({ value: c.id, label: c.nombre }))}
+              onChange={v => set('id_centro', v)}
+            />
           </FormField>
 
           <FormField label="Nombre" required>
@@ -253,7 +258,6 @@ export function SedesPage() {
             </AppSelect>
           </FormField>
 
-          {formError && <AlertBanner variant="error">{formError}</AlertBanner>}
         </div>
       </AppModal>
 
@@ -271,5 +275,6 @@ export function SedesPage() {
         loading={deleting}
       />
     </div>
+    </>
   )
 }
