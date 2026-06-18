@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { useMobile } from '../../hooks/useMobile'
 import { useToast } from '../../hooks/useToast'
+import { FloatingActions } from '../organisms/FloatingActions'
 
 export function AppLayout() {
   const isMobile = useMobile()
@@ -56,6 +57,8 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <FloatingActions />
     </div>
   )
 }

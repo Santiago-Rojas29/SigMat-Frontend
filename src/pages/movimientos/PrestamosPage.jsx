@@ -7,6 +7,8 @@ import { Badge } from '../../components/atoms/Badge'
 import { useToast }      from '../../hooks/useToast'
 import { AppDateInput } from '../../components/atoms/AppDateInput'
 import { useAuth } from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
+import { useSocket } from '../../context/SocketContext'
 import api from '../../services/api'
 
 const ESTADOS = {
@@ -113,7 +115,7 @@ export function PrestamosPage() {
   const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma] = await Promise.all([
+      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, un, lo, ma, fu, ub] = await Promise.all([
         api.get('/prestamo'),
         api.get('/validacion'),
         api.get('/solicitud'),
@@ -330,7 +332,7 @@ export function PrestamosPage() {
         api.patch(`/solicitud/${devPre._sol.id_solicitud}`, { estado: 'finalizado' }),
       ])
       setDevOpen(false); load()
-    } catch { setError('Error al registrar la devolución') }
+    } catch { showToast('error', 'Error al registrar la devolución') }
     finally { setDevSaving(false) }
   }
 

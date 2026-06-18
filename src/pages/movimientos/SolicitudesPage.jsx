@@ -161,7 +161,7 @@ export function SolicitudesPage() {
   const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [s, sl, su, u, f, l, un, m] = await Promise.all([
+      const [s, sl, su, u, f, l, un, m, ub] = await Promise.all([
         api.get('/solicitud'),
         api.get('/solicitud-lote'),
         api.get('/solicitud-unidad'),
@@ -170,7 +170,6 @@ export function SolicitudesPage() {
         api.get('/lote'),
         api.get('/unidad'),
         api.get('/material'),
-        api.get('/ficha'),
         api.get('/ubicacion'),
       ])
       setSolicitudes(s.data)
@@ -181,7 +180,6 @@ export function SolicitudesPage() {
       setLotes(l.data)
       setUnidades(un.data)
       setMateriales(m.data)
-      setFichas(fi.data)
       setUbicaciones(ub.data)
     } catch {
       if (!silent) showToast('error', 'Error al cargar los datos')
