@@ -13,6 +13,7 @@ import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
 const ESTADOS = {
@@ -41,6 +42,7 @@ const EMPTY_FORM = {
 
 
 export function UnidadesPage() {
+  const { user } = useAuth()
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
   const [searchParams] = useSearchParams()
@@ -54,6 +56,9 @@ export function UnidadesPage() {
   const [ubicaciones, setUbicaciones] = useState([])
   const [fichas,      setFichas]      = useState([])
   const [tipos,       setTipos]       = useState([])
+  const [roles,       setRoles]       = useState([])
+  const [solicitudes, setSolicitudes] = useState([])
+  const [solUnidades, setSolUnidades] = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -68,13 +73,16 @@ export function UnidadesPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [uRes, mRes, usRes, ubRes, fRes, tRes] = await Promise.all([
+      const [uRes, mRes, usRes, ubRes, fRes, tRes, roRes, solRes, suRes] = await Promise.all([
         api.get('/unidad'),
         api.get('/material'),
         api.get('/usuario'),
         api.get('/ubicacion'),
         api.get('/ficha'),
         api.get('/tipo-ubicacion'),
+        api.get('/rol'),
+        api.get('/solicitud'),
+        api.get('/solicitud-unidad'),
       ])
       setUnidades(uRes.data)
       setMateriales(mRes.data)
@@ -82,6 +90,9 @@ export function UnidadesPage() {
       setUbicaciones(ubRes.data)
       setFichas(fRes.data)
       setTipos(tRes.data)
+      setRoles(roRes.data)
+      setSolicitudes(solRes.data)
+      setSolUnidades(suRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -105,13 +116,25 @@ export function UnidadesPage() {
     _ficha:       fichas.find(f => f.id_ficha === u.id_ficha),
   })), [unidades, materiales, usuarios, ubicaciones, fichas])
 
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const unidadesVisibles = useMemo(() => {
+    if (isAdmin) return unidadesRicas
+    const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
+    const misUnidadIds = new Set(solUnidades.filter(su => misSolIds.has(su.id_solicitud)).map(su => su.id_unidad))
+    return unidadesRicas.filter(u => misUnidadIds.has(u.id_unidad))
+  }, [unidadesRicas, isAdmin, isBodega, user, solicitudes, solUnidades])
+
   const counts = useMemo(() => {
-    const base = { total: unidadesRicas.length }
+    const base = { total: unidadesVisibles.length }
     CARDS.filter(c => c.key !== null).forEach(c => {
-      base[c.key] = unidadesRicas.filter(u => u.estado === c.key).length
+      base[c.key] = unidadesVisibles.filter(u => u.estado === c.key).length
     })
     return base
-  }, [unidadesRicas])
+  }, [unidadesVisibles])
 
   const materialFiltro = useMemo(
     () => materiales.find(m => m.id === materialFiltroId) ?? null,
@@ -125,10 +148,10 @@ export function UnidadesPage() {
 
   const datosTabla = useMemo(() => {
     let data = materialFiltroId
-      ? unidadesRicas.filter(u => u.id_material === materialFiltroId)
+      ? unidadesVisibles.filter(u => u.id_material === materialFiltroId)
       : ubicacionFiltroId
-        ? unidadesRicas.filter(u => String(u.id_ubicacion) === ubicacionFiltroId)
-        : unidadesRicas
+        ? unidadesVisibles.filter(u => String(u.id_ubicacion) === ubicacionFiltroId)
+        : unidadesVisibles
     if (filtro) data = data.filter(u => u.estado === filtro)
     return data
   }, [unidadesRicas, filtro, materialFiltroId, ubicacionFiltroId])

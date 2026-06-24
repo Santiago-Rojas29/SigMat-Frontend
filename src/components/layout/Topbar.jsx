@@ -39,7 +39,7 @@ const SECTION_LABELS = {
 const ROL_CONFIG = {
   'Administrador':    { label: 'Administrador',  color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
   'Instructor':       { label: 'Instructor',      color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  'InstructorBodega': { label: 'Instr. Bodega',   color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  'Responsable de Bodega': { label: 'Resp. Bodega',    color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
   'Aprendiz':         { label: 'Aprendiz',        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
 }
 

@@ -211,7 +211,7 @@ export function SolicitudesPage() {
     return roles.find(r => r.id === user.id_rol)?.nombre ?? null
   }, [roles, user])
 
-  const isInstructorBodega = myRoleName === 'InstructorBodega'
+  const isBodega = myRoleName === 'Responsable de Bodega'
 
   const instructores = useMemo(() => {
     const rolInstructor = roles.find(r => r.nombre === 'Instructor')
@@ -220,7 +220,7 @@ export function SolicitudesPage() {
   }, [usuarios, roles])
 
   const instructoresBodega = useMemo(() => {
-    const rolBodega = roles.find(r => r.nombre === 'InstructorBodega')
+    const rolBodega = roles.find(r => r.nombre === 'Responsable de Bodega')
     if (!rolBodega) return []
     return usuarios.filter(u => u.id_rol === rolBodega.id)
   }, [usuarios, roles])
@@ -273,20 +273,27 @@ export function SolicitudesPage() {
     }
   }), [solicitudes, solicitudLotes, solicitudUnidades, solicitudAprendices, usuarios, fichaUsuarios, fichas, ubicaciones, lotes, unidades, materiales])
 
+  const solicitudesVisibles = useMemo(() => {
+    if (isAdmin || isBodega) return solicitudesRicas
+    return solicitudesRicas.filter(s =>
+      s.id_solicitante === user?.id || s.id_instructor === user?.id
+    )
+  }, [solicitudesRicas, isAdmin, isBodega, user])
+
   const counts = useMemo(() => {
-    const base = { total: solicitudesRicas.length, en_proceso: 0 }
-    solicitudesRicas.forEach(s => {
+    const base = { total: solicitudesVisibles.length, en_proceso: 0 }
+    solicitudesVisibles.forEach(s => {
       if (PENDIENTES.includes(s.estado)) base.en_proceso = (base.en_proceso ?? 0) + 1
       else base[s.estado] = (base[s.estado] ?? 0) + 1
     })
     return base
-  }, [solicitudesRicas])
+  }, [solicitudesVisibles])
 
   const datosFiltrados = useMemo(() => {
-    if (!filterKey) return solicitudesRicas
-    if (filterKey === 'en_proceso') return solicitudesRicas.filter(s => PENDIENTES.includes(s.estado))
-    return solicitudesRicas.filter(s => s.estado === filterKey)
-  }, [solicitudesRicas, filterKey])
+    if (!filterKey) return solicitudesVisibles
+    if (filterKey === 'en_proceso') return solicitudesVisibles.filter(s => PENDIENTES.includes(s.estado))
+    return solicitudesVisibles.filter(s => s.estado === filterKey)
+  }, [solicitudesVisibles, filterKey])
 
   const unidadesDisponibles = useMemo(() =>
     unidades.filter(u => u.estado === 'disponible').map(u => ({ ...u, _material: materiales.find(m => m.id === u.id_material) }))
@@ -301,9 +308,9 @@ export function SolicitudesPage() {
   function getPerms(sol) {
     const isMine  = sol.id_solicitante === user?.id
     const nonTerm = !TERMINALES.includes(sol.estado)
-    const canAprovBodega = isInstructorBodega && sol.estado === 'pendiente_bodega' &&
+    const canAprovBodega = isBodega && sol.estado === 'pendiente_bodega' &&
                            (sol.id_bodega === null || sol.id_bodega === user?.id)
-    const isBodegaAsignada = isInstructorBodega && sol.id_bodega === user?.id
+    const isBodegaAsignada = isBodega && sol.id_bodega === user?.id
 
     return {
       canCancel:             isMine && nonTerm && sol.estado !== 'aprobado',
@@ -345,7 +352,7 @@ export function SolicitudesPage() {
   )
 
   const handleRechazar = () => {
-    const rol = myRoleName === 'InstructorBodega' ? 'bodega' : isAdmin ? 'admin' : 'instructor'
+    const rol = myRoleName === 'Responsable de Bodega' ? 'bodega' : isAdmin ? 'admin' : 'instructor'
     doAction(`/solicitud/${rejectModal.id}/rechazar`, {
       rol,
       motivo_rechazo: rejectModal.motivo || undefined,
@@ -645,7 +652,7 @@ export function SolicitudesPage() {
             <div>
               <label style={labelStyle}>Tipo de préstamo *</label>
               <AppSelect value={form.tipo_prestamo} onChange={e => setForm(p => ({ ...p, tipo_prestamo: e.target.value }))}>
-                <option value="interno">Interno — InstructorBodega aprueba directamente</option>
+                <option value="interno">Interno — Responsable de Bodega aprueba directamente</option>
                 <option value="externo">Externo — pasa por Administrador primero</option>
               </AppSelect>
             </div>
@@ -671,7 +678,7 @@ export function SolicitudesPage() {
                 <label style={labelStyle}>Instructor responsable de Bodega *</label>
                 <SearchableSelect
                   value={form.id_bodega}
-                  placeholder="Seleccionar InstructorBodega..."
+                  placeholder="Seleccionar Responsable de Bodega..."
                   options={instructoresBodega.map(u => ({ value: u.id, label: fmtNombre(u) }))}
                   onChange={v => setForm(p => ({ ...p, id_bodega: v }))}
                 />

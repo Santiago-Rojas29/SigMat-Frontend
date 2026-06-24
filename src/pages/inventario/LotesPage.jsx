@@ -14,6 +14,7 @@ import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
 const CATEGORIAS_MAT = {
@@ -84,6 +85,7 @@ function CatBadge({ categoria }) {
 }
 
 export function LotesPage() {
+  const { user } = useAuth()
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
   const [searchParams] = useSearchParams()
@@ -98,6 +100,9 @@ export function LotesPage() {
   const [fichas,      setFichas]      = useState([])
   const [loteFichas,  setLoteFichas]  = useState([])
   const [tipos,       setTipos]       = useState([])
+  const [roles,       setRoles]       = useState([])
+  const [solicitudes, setSolicitudes] = useState([])
+  const [solLotes,    setSolLotes]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -118,7 +123,7 @@ export function LotesPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [lRes, mRes, uRes, ubRes, fRes, lfRes, tRes] = await Promise.all([
+      const [lRes, mRes, uRes, ubRes, fRes, lfRes, tRes, roRes, solRes, slRes] = await Promise.all([
         api.get('/lote'),
         api.get('/material'),
         api.get('/usuario'),
@@ -126,6 +131,9 @@ export function LotesPage() {
         api.get('/ficha'),
         api.get('/lote-ficha'),
         api.get('/tipo-ubicacion'),
+        api.get('/rol'),
+        api.get('/solicitud'),
+        api.get('/solicitud-lote'),
       ])
       setLotes(lRes.data)
       setMateriales(mRes.data)
@@ -134,6 +142,9 @@ export function LotesPage() {
       setFichas(fRes.data)
       setLoteFichas(lfRes.data)
       setTipos(tRes.data)
+      setRoles(roRes.data)
+      setSolicitudes(solRes.data)
+      setSolLotes(slRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -156,13 +167,25 @@ export function LotesPage() {
     _ubicacion:   ubicaciones.find(u => u.id_ubicacion === l.id_ubicacion),
   })), [lotes, materiales, usuarios, ubicaciones])
 
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const lotesVisibles = useMemo(() => {
+    if (isAdmin) return lotesRicos
+    const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
+    const misLoteIds = new Set(solLotes.filter(sl => misSolIds.has(sl.id_solicitud)).map(sl => sl.id_lote))
+    return lotesRicos.filter(l => misLoteIds.has(l.id_lote))
+  }, [lotesRicos, isAdmin, isBodega, user, solicitudes, solLotes])
+
   const counts = useMemo(() => ({
-    total:      lotesRicos.length,
-    consumible: lotesRicos.filter(l => l._material?.categoria === 'consumible').length,
-    perecedero: lotesRicos.filter(l => l._material?.categoria === 'perecedero').length,
-    proximo:    lotesRicos.filter(l => l.estado === 'proximo a vencer').length,
-    vencido:    lotesRicos.filter(l => l.estado === 'vencido').length,
-  }), [lotesRicos])
+    total:      lotesVisibles.length,
+    consumible: lotesVisibles.filter(l => l._material?.categoria === 'consumible').length,
+    perecedero: lotesVisibles.filter(l => l._material?.categoria === 'perecedero').length,
+    proximo:    lotesVisibles.filter(l => l.estado === 'proximo a vencer').length,
+    vencido:    lotesVisibles.filter(l => l.estado === 'vencido').length,
+  }), [lotesVisibles])
 
   const materialFiltro = useMemo(
     () => materiales.find(m => m.id === materialFiltroId) ?? null,
@@ -176,10 +199,10 @@ export function LotesPage() {
 
   const datosTabla = useMemo(() => {
     let base = materialFiltroId
-      ? lotesRicos.filter(l => l.id_material === materialFiltroId)
+      ? lotesVisibles.filter(l => l.id_material === materialFiltroId)
       : ubicacionFiltroId
-        ? lotesRicos.filter(l => String(l.id_ubicacion) === ubicacionFiltroId)
-        : lotesRicos
+        ? lotesVisibles.filter(l => String(l.id_ubicacion) === ubicacionFiltroId)
+        : lotesVisibles
     if (!filtro) return base
     if (filtro === 'consumible') return base.filter(l => l._material?.categoria === 'consumible')
     if (filtro === 'perecedero') return base.filter(l => l._material?.categoria === 'perecedero')

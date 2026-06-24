@@ -30,7 +30,8 @@ export function LoginForm() {
     try {
       const result = await loginRequest({ correo, contrasena })
       login(result.access_token, result.user)
-      navigate('/dashboard', { state: { loginSuccess: true } })
+      const dest = result.user.id_sede === null ? '/root/centros' : '/dashboard'
+      navigate(dest, { state: { loginSuccess: true } })
     } catch (err) {
       if (err?.response?.status === 403) {
         showToast('error', 'Tu cuenta está inactiva. Contacta al administrador.')

@@ -26,6 +26,10 @@ import { IncidenciasPage } from './pages/control/IncidenciasPage'
 import { TrasladosPage }  from './pages/control/TrasladosPage'
 import { KardexPage }     from './pages/control/KardexPage'
 import { ReportesPage }  from './pages/reportes/ReportesPage'
+import { RootLayout }         from './components/layout/RootLayout'
+import { RootCentrosPage }    from './pages/root/RootCentrosPage'
+import { RootSedesPage }      from './pages/root/RootSedesPage'
+import { RootAdminsPage }     from './pages/root/RootAdminsPage'
 
 function App() {
   return (
@@ -38,6 +42,15 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
+            {/* Root panel — interfaz separada para super admin */}
+            <Route element={<PrivateRoute />}>
+              <Route element={<RootLayout />}>
+                <Route path="/root/centros" element={<RootCentrosPage />} />
+                <Route path="/root/sedes"   element={<RootSedesPage />} />
+                <Route path="/root/admins"  element={<RootAdminsPage />} />
+              </Route>
+            </Route>
+
             {/* Protected — requires authentication */}
             <Route element={<PrivateRoute />}>
               <Route element={<AppLayout />}>
@@ -48,14 +61,16 @@ function App() {
                 {/* Reportes — always visible */}
                 <Route path="/reportes" element={<ReportesPage />} />
 
-                {/* Estructura — solo administradores */}
+                {/* Estructura — solo administradores (excepto Fichas) */}
                 <Route element={<PermissionRoute module="administracion" />}>
                   <Route path="/estructura/centros"  element={<CentrosPage />} />
                   <Route path="/estructura/sedes"    element={<SedesPage />} />
                   <Route path="/estructura/areas"    element={<AreasPage />} />
                   <Route path="/estructura/programas"element={<ProgramasPage />} />
-                  <Route path="/estructura/fichas"   element={<FichasPage />} />
                 </Route>
+
+                {/* Fichas — visible para todos (instructores ven solo las suyas) */}
+                <Route path="/estructura/fichas"   element={<FichasPage />} />
 
                 {/* Administración — requires 'administracion' */}
                 <Route element={<PermissionRoute module="administracion" />}>

@@ -18,12 +18,12 @@ const NAV = [
   },
   {
     section: 'Estructura',
-    sectionModule: 'administracion',
+    sectionModule: null,
     items: [
-      { label: 'Centros',   path: '/estructura/centros',   icon: 'building',  module: null },
-      { label: 'Sedes',     path: '/estructura/sedes',     icon: 'map-pin',   module: null },
-      { label: 'Áreas',     path: '/estructura/areas',     icon: 'folder',    module: null },
-      { label: 'Programas', path: '/estructura/programas', icon: 'book',      module: null },
+      { label: 'Centros',   path: '/estructura/centros',   icon: 'building',  module: 'estructura', sub: 'centros'   },
+      { label: 'Sedes',     path: '/estructura/sedes',     icon: 'map-pin',   module: 'estructura', sub: 'sedes'     },
+      { label: 'Áreas',     path: '/estructura/areas',     icon: 'folder',    module: 'estructura', sub: 'areas'     },
+      { label: 'Programas', path: '/estructura/programas', icon: 'book',      module: 'estructura', sub: 'programas' },
       { label: 'Fichas',    path: '/estructura/fichas',    icon: 'clipboard', module: null },
     ],
   },
@@ -31,35 +31,35 @@ const NAV = [
     section: 'Administración',
     sectionModule: 'administracion',
     items: [
-      { label: 'Usuarios', path: '/admin/usuarios', icon: 'users',  module: 'administracion' },
-      { label: 'Roles',    path: '/admin/roles',    icon: 'shield', module: 'administracion' },
+      { label: 'Usuarios', path: '/admin/usuarios', icon: 'users',  module: 'administracion', sub: 'usuarios' },
+      { label: 'Roles',    path: '/admin/roles',    icon: 'shield', module: 'administracion', sub: 'roles'    },
     ],
   },
   {
     section: 'Inventario',
     sectionModule: 'inventario',
     items: [
-      { label: 'Materiales',  path: '/inventario/materiales',  icon: 'package', module: 'inventario' },
-      { label: 'Lotes',       path: '/inventario/lotes',       icon: 'layers',  module: 'inventario' },
-      { label: 'Unidades',    path: '/inventario/unidades',    icon: 'tool',    module: 'inventario' },
-      { label: 'Ubicaciones', path: '/inventario/ubicaciones', icon: 'map-pin', module: 'inventario' },
+      { label: 'Materiales',  path: '/inventario/materiales',  icon: 'package', module: 'inventario', sub: 'materiales'  },
+      { label: 'Lotes',       path: '/inventario/lotes',       icon: 'layers',  module: 'inventario', sub: 'lotes'       },
+      { label: 'Unidades',    path: '/inventario/unidades',    icon: 'tool',    module: 'inventario', sub: 'unidades'    },
+      { label: 'Ubicaciones', path: '/inventario/ubicaciones', icon: 'map-pin', module: 'inventario', sub: 'ubicaciones' },
     ],
   },
   {
     section: 'Movimientos',
     sectionModule: 'movimientos',
     items: [
-      { label: 'Solicitudes', path: '/movimientos/solicitudes', icon: 'file',   module: 'movimientos' },
-      { label: 'Préstamos',   path: '/movimientos/prestamos',   icon: 'arrows', module: 'movimientos' },
+      { label: 'Solicitudes', path: '/movimientos/solicitudes', icon: 'file',   module: 'movimientos', sub: 'solicitudes' },
+      { label: 'Préstamos',   path: '/movimientos/prestamos',   icon: 'arrows', module: 'movimientos', sub: 'prestamos'   },
     ],
   },
   {
     section: 'Control y Seguimiento',
     sectionModule: 'control',
     items: [
-      { label: 'Traslados',   path: '/control/traslados',   icon: 'shuffle', module: 'control' },
-      { label: 'Incidencias', path: '/control/incidencias', icon: 'alert',   module: 'control' },
-      { label: 'Kardex',      path: '/control/kardex',      icon: 'chart',   module: 'control' },
+      { label: 'Traslados',   path: '/control/traslados',   icon: 'shuffle', module: 'control', sub: 'traslados'   },
+      { label: 'Incidencias', path: '/control/incidencias', icon: 'alert',   module: 'control', sub: 'incidencias' },
+      { label: 'Kardex',      path: '/control/kardex',      icon: 'chart',   module: 'control', sub: 'kardex'      },
     ],
   },
   {
@@ -72,7 +72,7 @@ const NAV = [
 ]
 
 export function Sidebar({ isOpen, isMobile, onClose }) {
-  const { hasPermission, hasAnyPermission } = usePermissions()
+  const { hasPermission, hasSubPermission, hasAnyPermission } = usePermissions()
   const [openSections, setOpenSections] = useState({})
 
   const toggleSection = (s) => setOpenSections(p => ({ ...p, [s]: p[s] !== false ? false : true }))
@@ -81,7 +81,11 @@ export function Sidebar({ isOpen, isMobile, onClose }) {
     if (!mod) return true
     return Array.isArray(mod) ? hasAnyPermission(mod) : hasPermission(mod)
   }
-  const itemVisible = (mod) => (!mod ? true : hasPermission(mod))
+  const itemVisible = (mod, sub) => {
+    if (!mod) return true
+    if (!sub) return hasPermission(mod)
+    return hasSubPermission(mod, sub)
+  }
 
   const asideStyle = isMobile ? {
     position: 'fixed',
@@ -148,7 +152,7 @@ export function Sidebar({ isOpen, isMobile, onClose }) {
       <nav className="smt-nav" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 0' }}>
         {NAV.map(({ section, sectionModule, items }) => {
           if (!sectionVisible(sectionModule)) return null
-          const visible = items.filter(it => itemVisible(it.module))
+          const visible = items.filter(it => itemVisible(it.module, it.sub))
           if (visible.length === 0) return null
           const expanded = openSections[section] !== false
 

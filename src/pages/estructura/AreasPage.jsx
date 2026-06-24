@@ -236,25 +236,29 @@ export function AreasPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 14 }}>
-            <FormField label="Sede" required>
-              <SearchableSelect
-                size="sm"
-                value={form.id_sede}
-                placeholder="Seleccionar sede"
-                options={sedes.map(s => ({ value: s.id_sede, label: s.nombre }))}
-                onChange={v => set('id_sede', v)}
-              />
-            </FormField>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FormField label="Sede" required>
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_sede}
+                  placeholder="Seleccionar sede"
+                  options={sedes.map(s => ({ value: s.id_sede, label: s.nombre }))}
+                  onChange={v => set('id_sede', v)}
+                />
+              </FormField>
+            </div>
 
-            <FormField label="Responsable" required>
-              <SearchableSelect
-                size="sm"
-                value={form.id_usuario}
-                placeholder="Seleccionar usuario"
-                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
-                onChange={v => set('id_usuario', v)}
-              />
-            </FormField>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FormField label="Responsable" required>
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_usuario}
+                  placeholder="Seleccionar usuario"
+                  options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                  onChange={v => set('id_usuario', v)}
+                />
+              </FormField>
+            </div>
           </div>
 
           <FormField label="Nombre" required>

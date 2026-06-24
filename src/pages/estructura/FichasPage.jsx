@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
+import { useAuth }          from '../../context/AuthContext'
+import { usePermissions }   from '../../context/PermissionsContext'
 import { AppButton }        from '../../components/atoms/AppButton'
 import { AppInput }         from '../../components/atoms/AppInput'
 import { AppDateInput }     from '../../components/atoms/AppDateInput'
@@ -39,6 +41,10 @@ const EMPTY_FORM = {
 }
 
 export function FichasPage() {
+  const { user } = useAuth()
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
   const [fichas,       setFichas]       = useState([])
   const [programas,    setProgramas]    = useState([])
   const [usuarios,     setUsuarios]     = useState([])
@@ -183,12 +189,16 @@ export function FichasPage() {
   const rolNombreDeUsuario = (u) =>
     roles.find(r => r.id === u.id_rol)?.nombre?.toLowerCase() ?? ''
 
+  const aprendicesEnAlgunaFicha = new Set(
+    fichaUsuarios.filter(fu => fu.rol_en_ficha === 'aprendiz').map(fu => fu.id_usuario)
+  )
+
   const usuariosDisponibles = usuarios
     .filter(u => !miembrosDeFicha.some(fu => fu.id_usuario === u.id))
     .filter(u => {
       const rn = rolNombreDeUsuario(u)
       if (miembroForm.rol_en_ficha === 'instructor') return rn.includes('instructor')
-      if (miembroForm.rol_en_ficha === 'aprendiz')   return rn.includes('aprendiz')
+      if (miembroForm.rol_en_ficha === 'aprendiz')   return rn.includes('aprendiz') && !aprendicesEnAlgunaFicha.has(u.id)
       return true
     })
 
@@ -234,6 +244,13 @@ export function FichasPage() {
       showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setMiembroDeleting(null) }
   }
+
+  // ── Datos filtrados según rol ────────────────────────────────────────────
+  const misFichaIds = !isAdmin
+    ? new Set(fichaUsuarios.filter(fu => fu.id_usuario === user?.id).map(fu => fu.id_ficha))
+    : null
+
+  const fichasVisibles = isAdmin ? fichas : fichas.filter(f => misFichaIds.has(f.id_ficha))
 
   const columns = [
     {
@@ -287,9 +304,21 @@ export function FichasPage() {
       key: 'acciones',
       header: '',
       align: 'right',
-      width: 90,
+      width: isAdmin ? 90 : 60,
+      searchable: false,
       render: (f) => {
         const totalMiembros = fichaUsuarios.filter(fu => fu.id_ficha === f.id_ficha).length
+        if (!isAdmin) {
+          return (
+            <IconButton
+              title="Ver miembros"
+              onClick={() => openMiembros(f)}
+              style={{ color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe' }}
+            >
+              <AppIcon name="eye" size={15} />
+            </IconButton>
+          )
+        }
         return (
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
             <button
@@ -322,41 +351,49 @@ export function FichasPage() {
       {toastPortal}
       <div>
       <PageHeader
-        title="Fichas"
-        description="Gestión de fichas de los programas de formación del SENA"
+        title={isAdmin ? 'Fichas' : 'Mis Fichas'}
+        description={isAdmin
+          ? 'Gestión de fichas de los programas de formación del SENA'
+          : 'Fichas de formación donde estás asignado. Consulta los miembros de cada ficha.'}
       />
 
       <DataTable
         columns={columns}
-        data={fichas}
+        data={fichasVisibles}
+        rowKey="id_ficha"
         loading={loading}
         error={error}
         onRetry={loadData}
         searchable
         searchPlaceholder="Buscar por código, programa, jornada…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
-        emptyTitle="Sin fichas"
-        emptyDescription="Crea la primera ficha."
-        emptyAction={
-          <AppButton size="compact" onClick={openCreate}>
-            <AppIcon name="plus" /> Nueva ficha
-          </AppButton>
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        emptyTitle={isAdmin ? 'Sin fichas' : 'Sin fichas asignadas'}
+        emptyDescription={isAdmin ? 'Crea la primera ficha.' : 'No estás asignado a ninguna ficha.'}
+        emptyAction={isAdmin
+          ? <AppButton size="compact" onClick={openCreate}><AppIcon name="plus" /> Nueva ficha</AppButton>
+          : null
         }
         actions={
-          <>
+          isAdmin ? (
+            <>
+              <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
+                <AppIcon name="refresh" /> Actualizar
+              </AppButton>
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nueva ficha
+              </AppButton>
+            </>
+          ) : (
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nueva ficha
-            </AppButton>
-          </>
+          )
         }
       />
 
-      <AppModal
+      {isAdmin && <AppModal
         isOpen={!!modal}
         onClose={closeModal}
         maxWidth={640}
@@ -433,7 +470,7 @@ export function FichasPage() {
           </div>
 
         </div>
-      </AppModal>
+      </AppModal>}
 
       {/* ── Modal de miembros ─────────────────────────────────────────────── */}
       <AppModal
@@ -475,14 +512,16 @@ export function FichasPage() {
                             </svg>
                             <span style={{ fontSize: 13, fontWeight: 500, color: '#1d4ed8' }}>{fmtNombre(u)}</span>
                           </div>
-                          <IconButton
-                            title="Quitar de la ficha"
-                            disabled={miembroDeleting === fu.id_usuario}
-                            onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
-                            style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
-                          >
-                            <AppIcon name="trash" size={13} />
-                          </IconButton>
+                          {isAdmin && (
+                            <IconButton
+                              title="Quitar de la ficha"
+                              disabled={miembroDeleting === fu.id_usuario}
+                              onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
+                              style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
+                            >
+                              <AppIcon name="trash" size={13} />
+                            </IconButton>
+                          )}
                         </div>
                       )
                     })}
@@ -511,14 +550,16 @@ export function FichasPage() {
                             </svg>
                             <span style={{ fontSize: 13, fontWeight: 500, color: '#92400e' }}>{fmtNombre(u)}</span>
                           </div>
-                          <IconButton
-                            title="Quitar de la ficha"
-                            disabled={miembroDeleting === fu.id_usuario}
-                            onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
-                            style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
-                          >
-                            <AppIcon name="trash" size={13} />
-                          </IconButton>
+                          {isAdmin && (
+                            <IconButton
+                              title="Quitar de la ficha"
+                              disabled={miembroDeleting === fu.id_usuario}
+                              onClick={() => handleMiembroEliminar(fu.id_ficha, fu.id_usuario)}
+                              style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca' }}
+                            >
+                              <AppIcon name="trash" size={13} />
+                            </IconButton>
+                          )}
                         </div>
                       )
                     })}
@@ -528,53 +569,55 @@ export function FichasPage() {
             </>
           )}
 
-          {/* Formulario para agregar miembro */}
-          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              Agregar miembro
-            </p>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <FormField label="Rol" style={{ flex: 1 }}>
-                <AppSelect
-                  size="sm"
-                  value={miembroForm.rol_en_ficha}
-                  onChange={e => setMiembroForm(p => ({ ...p, id_usuario: '', rol_en_ficha: e.target.value }))}
-                >
-                  {ROL_EN_FICHA_OPTS
-                    .filter(o => !(o.value === 'instructor' && yaHayInstructor))
-                    .map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                </AppSelect>
-              </FormField>
-              <FormField label="Usuario" style={{ flex: 2 }}>
-                <SearchableSelect
-                  size="sm"
-                  value={miembroForm.id_usuario}
-                  placeholder="— Seleccionar usuario —"
-                  options={usuariosDisponibles.map(u => ({ value: u.id, label: fmtNombre(u) }))}
-                  onChange={v => setMiembroForm(p => ({ ...p, id_usuario: v }))}
-                />
-              </FormField>
-              <div style={{ marginBottom: 1 }}>
-                <AppButton size="compact" onClick={handleMiembroAgregar} loading={miembroSaving}>
-                  Agregar
-                </AppButton>
-              </div>
-            </div>
-            {usuariosDisponibles.length === 0 && !miembroSaving && (
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>
-                {miembroForm.rol_en_ficha === 'instructor'
-                  ? 'No hay instructores disponibles para agregar.'
-                  : 'No hay aprendices disponibles para agregar.'}
+          {/* Formulario para agregar miembro — solo admin */}
+          {isAdmin && (
+            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Agregar miembro
               </p>
-            )}
-          </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                <FormField label="Rol" style={{ flex: 1 }}>
+                  <AppSelect
+                    size="sm"
+                    value={miembroForm.rol_en_ficha}
+                    onChange={e => setMiembroForm(p => ({ ...p, id_usuario: '', rol_en_ficha: e.target.value }))}
+                  >
+                    {ROL_EN_FICHA_OPTS
+                      .filter(o => !(o.value === 'instructor' && yaHayInstructor))
+                      .map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                  </AppSelect>
+                </FormField>
+                <FormField label="Usuario" style={{ flex: 2 }}>
+                  <SearchableSelect
+                    size="sm"
+                    value={miembroForm.id_usuario}
+                    placeholder="— Seleccionar usuario —"
+                    options={usuariosDisponibles.map(u => ({ value: u.id, label: fmtNombre(u) }))}
+                    onChange={v => setMiembroForm(p => ({ ...p, id_usuario: v }))}
+                  />
+                </FormField>
+                <div style={{ marginBottom: 1 }}>
+                  <AppButton size="compact" onClick={handleMiembroAgregar} loading={miembroSaving}>
+                    Agregar
+                  </AppButton>
+                </div>
+              </div>
+              {usuariosDisponibles.length === 0 && !miembroSaving && (
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>
+                  {miembroForm.rol_en_ficha === 'instructor'
+                    ? 'No hay instructores disponibles para agregar.'
+                    : 'No hay aprendices disponibles para agregar.'}
+                </p>
+              )}
+            </div>
+          )}
 
         </div>
       </AppModal>
 
-      <ConfirmDialog
+      {isAdmin && <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Eliminar ficha"
         description={
@@ -586,7 +629,7 @@ export function FichasPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
-      />
+      />}
     </div>
     </>
   )

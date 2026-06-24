@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../../services/api'
+import { useAuth }        from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
 import { AppButton }   from '../../components/atoms/AppButton'
 import { AppInput }    from '../../components/atoms/AppInput'
 import { AppDateInput } from '../../components/atoms/AppDateInput'
@@ -39,12 +41,23 @@ function fmt(val) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function KardexPage() {
-  const [kardex,     setKardex]     = useState([])
-  const [unidades,   setUnidades]   = useState([])
-  const [lotes,      setLotes]      = useState([])
-  const [materiales, setMateriales] = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState(null)
+  const { user } = useAuth()
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
+
+  const [kardex,        setKardex]        = useState([])
+  const [unidades,      setUnidades]      = useState([])
+  const [lotes,         setLotes]         = useState([])
+  const [materiales,    setMateriales]    = useState([])
+  const [roles,         setRoles]         = useState([])
+  const [incidencias,   setIncidencias]   = useState([])
+  const [entregas,      setEntregas]      = useState([])
+  const [devoluciones,  setDevoluciones]  = useState([])
+  const [prestamos,     setPrestamos]     = useState([])
+  const [validaciones,  setValidaciones]  = useState([])
+  const [solicitudes,   setSolicitudes]   = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [error,         setError]         = useState(null)
 
   // Filtros
   const [filtroTipo,   setFiltroTipo]   = useState('')
@@ -56,16 +69,30 @@ export function KardexPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [kRes, uRes, lRes, mRes] = await Promise.all([
+      const [kRes, uRes, lRes, mRes, roRes, incRes, entRes, devRes, preRes, valRes, solRes] = await Promise.all([
         api.get('/kardex'),
         api.get('/unidad'),
         api.get('/lote'),
         api.get('/material'),
+        api.get('/rol'),
+        api.get('/incidencia'),
+        api.get('/entrega'),
+        api.get('/devolucion'),
+        api.get('/prestamo'),
+        api.get('/validacion'),
+        api.get('/solicitud'),
       ])
       setKardex(kRes.data)
       setUnidades(uRes.data)
       setLotes(lRes.data)
       setMateriales(mRes.data)
+      setRoles(roRes.data)
+      setIncidencias(incRes.data)
+      setEntregas(entRes.data)
+      setDevoluciones(devRes.data)
+      setPrestamos(preRes.data)
+      setValidaciones(valRes.data)
+      setSolicitudes(solRes.data)
     } catch { setError('No se pudo cargar el kardex.') }
     finally { setLoading(false) }
   }, [])
@@ -102,10 +129,47 @@ export function KardexPage() {
     return { ...k, materialNombre, itemCodigo, itemTipo, referencia }
   }), [kardex, unidades, lotes, materiales])
 
+  // ── Filtrado por rol ──────────────────────────────────────────────────────────
+
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const kardexVisible = useMemo(() => {
+    if (isAdmin || isBodega) return kardexRico
+
+    const misSolicitudIds = new Set(
+      solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud)
+    )
+    const misValidacionIds = new Set(
+      validaciones.filter(v => misSolicitudIds.has(v.id_solicitud)).map(v => v.id)
+    )
+    const misPrestamoIds = new Set(
+      prestamos.filter(p => misValidacionIds.has(p.id_validacion)).map(p => p.id)
+    )
+    const misEntregaIds = new Set(
+      entregas.filter(e => misPrestamoIds.has(String(e.id_prestamo))).map(e => e.id_entrega)
+    )
+    const misDevolucionIds = new Set(
+      devoluciones.filter(d => misEntregaIds.has(String(d.id_entrega))).map(d => d.id)
+    )
+    const misIncidenciaIds = new Set(
+      incidencias.filter(i => i.id_usuario === user?.id).map(i => i.id)
+    )
+
+    return kardexRico.filter(k => {
+      if (k.id_entrega && misEntregaIds.has(k.id_entrega)) return true
+      if (k.id_devolucion && misDevolucionIds.has(k.id_devolucion)) return true
+      if (k.id_incidencia && misIncidenciaIds.has(k.id_incidencia)) return true
+      return false
+    })
+  }, [kardexRico, isAdmin, isBodega, user, solicitudes, validaciones, prestamos, entregas, devoluciones, incidencias])
+
   // ── Filtrado ──────────────────────────────────────────────────────────────────
 
   const datosFiltrados = useMemo(() => {
-    return kardexRico.filter(k => {
+    return kardexVisible.filter(k => {
       if (filtroTipo && k.tipo_movimiento !== filtroTipo) return false
       if (filtroDesde) {
         const desde = new Date(filtroDesde)
@@ -123,16 +187,19 @@ export function KardexPage() {
   // ── Contadores ────────────────────────────────────────────────────────────────
 
   const counts = useMemo(() => ({
-    total:    kardexRico.length,
-    entradas: kardexRico.filter(k => k.tipo_movimiento === 'entrada').length,
-    salidas:  kardexRico.filter(k => k.tipo_movimiento === 'salida').length,
-    traslados:kardexRico.filter(k => k.tipo_movimiento === 'traslado').length,
-    ajustes:  kardexRico.filter(k => k.tipo_movimiento === 'ajuste').length,
-  }), [kardexRico])
+    total:    kardexVisible.length,
+    entradas: kardexVisible.filter(k => k.tipo_movimiento === 'entrada').length,
+    salidas:  kardexVisible.filter(k => k.tipo_movimiento === 'salida').length,
+    traslados:kardexVisible.filter(k => k.tipo_movimiento === 'traslado').length,
+    ajustes:  kardexVisible.filter(k => k.tipo_movimiento === 'ajuste').length,
+  }), [kardexVisible])
 
   // ── Columnas ──────────────────────────────────────────────────────────────────
 
   const columns = [
+    {
+      key: 'id', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110,
+    },
     {
       key: 'fecha_movimiento',
       header: 'Fecha',

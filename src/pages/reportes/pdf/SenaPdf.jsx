@@ -1,5 +1,5 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
-import sigmatLogo from '../../../assets/sigmat-logo.png'
+import sigmatLogo from '../../../assets/sigmat-logo-sinfondo.jpeg'
 
 const GREEN  = '#39A900'
 const DARK   = '#111827'
@@ -45,16 +45,20 @@ export const pdfStyles = StyleSheet.create({
   filterChip: { fontSize: 8, color: DARK },
   filterLabel: { fontFamily: 'Helvetica-Bold' },
   // ── Table ──
-  table: { width: '100%' },
+  table: {
+    width: '100%',
+    borderRadius: 4,
+    overflow: 'hidden',
+    border: '0.75 solid #C6E9B5',
+  },
   thead: {
     flexDirection: 'row',
     backgroundColor: GREEN,
-    borderRadius: '4 4 0 0',
     paddingVertical: 5,
   },
   th: { fontFamily: 'Helvetica-Bold', color: '#ffffff', fontSize: 8, paddingHorizontal: 6 },
-  trEven: { flexDirection: 'row', backgroundColor: STRIPE,    borderBottomWidth: 1, borderBottomColor: BORDER, minHeight: 22, alignItems: 'center' },
-  trOdd:  { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: BORDER, minHeight: 22, alignItems: 'center' },
+  trEven: { flexDirection: 'row', backgroundColor: STRIPE,    borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'center' },
+  trOdd:  { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'center' },
   td: { fontSize: 8, color: DARK, paddingHorizontal: 6, paddingVertical: 3 },
   // ── Misc ──
   noData:   { fontSize: 9, color: MUTED, textAlign: 'center', padding: 16 },

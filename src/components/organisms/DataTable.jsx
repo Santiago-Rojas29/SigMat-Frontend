@@ -37,14 +37,17 @@ export function DataTable({
   const filtered = useMemo(() => {
     if (!searchable || !query.trim()) return data
     const q = query.toLowerCase()
-    return data.filter(row =>
-      columns.some(col => {
+    return data.filter(row => {
+      const id = row[rowKey]
+      if (id != null && String(id).toLowerCase().includes(q)) return true
+      return columns.some(col => {
         if (col.searchable === false) return false
+        if (col.key === rowKey) return false
         const v = row[col.key]
         return v != null && String(v).toLowerCase().includes(q)
       })
-    )
-  }, [data, query, searchable, columns])
+    })
+  }, [data, query, searchable, columns, rowKey])
 
   const totalPages = pageSize ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1
   const cur        = Math.min(page, totalPages)

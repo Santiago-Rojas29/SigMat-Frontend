@@ -70,6 +70,7 @@ export function IncidenciasPage() {
   const { hasPermission } = usePermissions()
   const isAdmin = hasPermission('administracion')
 
+  const [roles,       setRoles]       = useState([])
   const [incidencias, setIncidencias] = useState([])
   const [unidades,    setUnidades]    = useState([])
   const [usuarios,    setUsuarios]    = useState([])
@@ -96,16 +97,18 @@ export function IncidenciasPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [ri, ru, ruu, rm] = await Promise.all([
+      const [ri, ru, ruu, rm, ro] = await Promise.all([
         api.get('/incidencia'),
         api.get('/unidad'),
         api.get('/usuario'),
         api.get('/material'),
+        api.get('/rol'),
       ])
       setIncidencias(ri.data)
       setUnidades(ru.data)
       setUsuarios(ruu.data)
       setMateriales(rm.data)
+      setRoles(ro.data)
     } catch {
       showToast('error', 'Error al cargar los datos')
     } finally {
@@ -132,18 +135,28 @@ export function IncidenciasPage() {
     })
   }, [incidencias, unidades, materiales, usuarios])
 
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const incidenciasVisibles = useMemo(() => {
+    if (isAdmin || isBodega) return incidenciasRicas
+    return incidenciasRicas.filter(i => i.id_usuario === user?.id)
+  }, [incidenciasRicas, isAdmin, isBodega, user])
+
   const counts = useMemo(() => {
-    const c = { total: incidenciasRicas.length }
+    const c = { total: incidenciasVisibles.length }
     CARDS_DEF.forEach(card => {
-      if (card.key) c[card.key] = incidenciasRicas.filter(i => i.estado === card.key).length
+      if (card.key) c[card.key] = incidenciasVisibles.filter(i => i.estado === card.key).length
     })
     return c
-  }, [incidenciasRicas])
+  }, [incidenciasVisibles])
 
   const datosFiltrados = useMemo(() => {
-    if (!filterKey) return incidenciasRicas
-    return incidenciasRicas.filter(i => i.estado === filterKey)
-  }, [incidenciasRicas, filterKey])
+    if (!filterKey) return incidenciasVisibles
+    return incidenciasVisibles.filter(i => i.estado === filterKey)
+  }, [incidenciasVisibles, filterKey])
 
   const openCreate = () => {
     setForm({ id_unidad: '', tipo: 'dano', fecha_incidencia: new Date().toISOString().slice(0, 10), descripcion: '' })
@@ -210,6 +223,9 @@ export function IncidenciasPage() {
   }
 
   const columns = [
+    {
+      key: 'id', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110,
+    },
     {
       key: 'codigo', header: 'Unidad',
       render: r => (
@@ -312,10 +328,14 @@ export function IncidenciasPage() {
         data={datosFiltrados}
         rowKey="id"
         loading={loading}
+        searchable
+        searchPlaceholder="Buscar por unidad, tipo, material…"
+        pageSize={10}
         actions={
           <AppButton size="compact" onClick={openCreate}>+ Nueva incidencia</AppButton>
         }
-        emptyMessage="No hay incidencias registradas"
+        emptyTitle="Sin incidencias"
+        emptyDescription="No hay incidencias registradas."
       />
 
       {/* ── Modal Crear ── */}

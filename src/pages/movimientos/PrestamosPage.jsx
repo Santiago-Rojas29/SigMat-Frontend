@@ -7,6 +7,7 @@ import { Badge } from '../../components/atoms/Badge'
 import { useToast }      from '../../hooks/useToast'
 import { AppDateInput } from '../../components/atoms/AppDateInput'
 import { useAuth } from '../../context/AuthContext'
+import { usePermissions } from '../../context/PermissionsContext'
 import { useSocket } from '../../context/SocketContext'
 import api from '../../services/api'
 
@@ -67,7 +68,10 @@ const DEV_INIT   = { fecha_devolucion: '', condicion: 'bueno', observaciones: ''
 
 export function PrestamosPage() {
   const { user } = useAuth()
+  const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission('administracion')
 
+  const [roles,              setRoles]              = useState([])
   const [prestamos,          setPrestamos]          = useState([])
   const [validaciones,       setValidaciones]       = useState([])
   const [solicitudes,        setSolicitudes]        = useState([])
@@ -113,7 +117,7 @@ export function PrestamosPage() {
   const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma, fu, ub] = await Promise.all([
+      const [pr, va, so, fi, en, eu, el, dv, du, su, sl, us, un, lo, ma, fu, ub, ro] = await Promise.all([
         api.get('/prestamo'),
         api.get('/validacion'),
         api.get('/solicitud'),
@@ -131,6 +135,7 @@ export function PrestamosPage() {
         api.get('/material'),
         api.get('/ficha-usuario'),
         api.get('/ubicacion'),
+        api.get('/rol'),
       ])
       setPrestamos(pr.data)
       setValidaciones(va.data)
@@ -149,6 +154,7 @@ export function PrestamosPage() {
       setMateriales(ma.data)
       setFichaUsuarios(fu.data)
       setUbicaciones(ub.data)
+      setRoles(ro.data)
     } catch {
       if (!silent) showToast('error', 'Error al cargar los datos')
     } finally {
@@ -211,15 +217,27 @@ export function PrestamosPage() {
        devoluciones, devolucionUnidades, solicitudUnidades, solicitudLotes,
        usuarios, unidades, lotes, materiales])
 
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const prestamosVisibles = useMemo(() => {
+    if (isAdmin || isBodega) return prestamosRicos
+    return prestamosRicos.filter(p =>
+      p.id_usuario === user?.id || p._sol?.id_solicitante === user?.id
+    )
+  }, [prestamosRicos, isAdmin, isBodega, user])
+
   const counts = useMemo(() => {
-    const c = { total: prestamosRicos.length }
-    CARDS_DEF.forEach(cd => { if (cd.key) c[cd.key] = prestamosRicos.filter(p => p.estado === cd.key).length })
+    const c = { total: prestamosVisibles.length }
+    CARDS_DEF.forEach(cd => { if (cd.key) c[cd.key] = prestamosVisibles.filter(p => p.estado === cd.key).length })
     return c
-  }, [prestamosRicos])
+  }, [prestamosVisibles])
 
   const filtrados = useMemo(() =>
-    filterKey ? prestamosRicos.filter(p => p.estado === filterKey) : prestamosRicos
-  , [prestamosRicos, filterKey])
+    filterKey ? prestamosVisibles.filter(p => p.estado === filterKey) : prestamosVisibles
+  , [prestamosVisibles, filterKey])
 
   const solicitudesDisponibles = useMemo(() => {
     const conVal = new Set(validaciones.map(v => v.id_solicitud))

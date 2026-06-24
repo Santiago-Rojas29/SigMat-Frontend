@@ -6,20 +6,20 @@ const PermissionsContext = createContext(null)
 
 export function PermissionsProvider({ children }) {
   const { isAuthenticated } = useAuth()
-  const [modules, setModules] = useState([])
+  const [modules, setModules] = useState({})
   const [loading, setLoading] = useState(false)
 
   const loadPermissions = useCallback(async () => {
     if (!isAuthenticated) {
-      setModules([])
+      setModules({})
       return
     }
     setLoading(true)
     try {
       const { data } = await api.get('/auth/permisos')
-      setModules(data.modulos ?? [])
+      setModules(data.modulos ?? {})
     } catch {
-      setModules([])
+      setModules({})
     } finally {
       setLoading(false)
     }
@@ -30,18 +30,28 @@ export function PermissionsProvider({ children }) {
   }, [loadPermissions])
 
   const hasPermission = useCallback(
-    (module) => modules.includes(module),
+    (module) => module in modules,
+    [modules],
+  )
+
+  const hasSubPermission = useCallback(
+    (module, submodule) => {
+      const subs = modules[module]
+      if (!subs) return false
+      if (subs.length === 0) return true
+      return subs.includes(submodule)
+    },
     [modules],
   )
 
   const hasAnyPermission = useCallback(
-    (mods) => mods.some((m) => modules.includes(m)),
+    (mods) => mods.some((m) => m in modules),
     [modules],
   )
 
   return (
     <PermissionsContext.Provider
-      value={{ modules, loading, hasPermission, hasAnyPermission, reload: loadPermissions }}
+      value={{ modules, loading, hasPermission, hasSubPermission, hasAnyPermission, reload: loadPermissions }}
     >
       {children}
     </PermissionsContext.Provider>

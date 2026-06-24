@@ -12,4 +12,16 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('sigmat_token')
+      localStorage.removeItem('sigmat_user')
+      window.location.replace('/login')
+    }
+    return Promise.reject(err)
+  },
+)
+
 export default api

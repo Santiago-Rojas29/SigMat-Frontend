@@ -13,6 +13,7 @@ import { useToast }      from '../../hooks/useToast'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
 const PALETA = [
@@ -26,6 +27,7 @@ const PALETA = [
 
 
 export function UbicacionesPage() {
+  const { user } = useAuth()
   const { hasPermission } = usePermissions()
   const isAdmin  = hasPermission('administracion')
   const navigate = useNavigate()
@@ -34,6 +36,12 @@ export function UbicacionesPage() {
   const [ubicaciones, setUbicaciones] = useState([])
   const [areas,       setAreas]       = useState([])
   const [usuarios,    setUsuarios]    = useState([])
+  const [roles,       setRoles]       = useState([])
+  const [solicitudes, setSolicitudes] = useState([])
+  const [solLotes,    setSolLotes]    = useState([])
+  const [solUnidades, setSolUnidades] = useState([])
+  const [lotes,       setLotes]       = useState([])
+  const [unidades,    setUnidades]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [filtro,      setFiltro]      = useState(null)
@@ -54,16 +62,28 @@ export function UbicacionesPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [tRes, uRes, aRes, usRes] = await Promise.all([
+      const [tRes, uRes, aRes, usRes, roRes, solRes, slRes, suRes, loRes, unRes] = await Promise.all([
         api.get('/tipo-ubicacion'),
         api.get('/ubicacion'),
         api.get('/area'),
         api.get('/usuario'),
+        api.get('/rol'),
+        api.get('/solicitud'),
+        api.get('/solicitud-lote'),
+        api.get('/solicitud-unidad'),
+        api.get('/lote'),
+        api.get('/unidad'),
       ])
       setTipos(tRes.data)
       setUbicaciones(uRes.data)
       setAreas(aRes.data)
       setUsuarios(usRes.data)
+      setRoles(roRes.data)
+      setSolicitudes(solRes.data)
+      setSolLotes(slRes.data)
+      setSolUnidades(suRes.data)
+      setLotes(loRes.data)
+      setUnidades(unRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -78,6 +98,23 @@ export function UbicacionesPage() {
     _paleta:    PALETA[(tipos.findIndex(t => String(t.id_tipo_ubicacion) === String(u.id_tipo_ubicacion))) % PALETA.length] ?? PALETA[0],
   })), [ubicaciones, tipos, areas, usuarios])
 
+  const isBodega = useMemo(() => {
+    if (!user) return false
+    return roles.find(r => r.id === user.id_rol)?.nombre === 'Responsable de Bodega'
+  }, [roles, user])
+
+  const ubicacionesVisibles = useMemo(() => {
+    if (isAdmin) return ubicacionesRicas
+    const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
+    const misLoteIds = new Set(solLotes.filter(sl => misSolIds.has(sl.id_solicitud)).map(sl => sl.id_lote))
+    const misUnidadIds = new Set(solUnidades.filter(su => misSolIds.has(su.id_solicitud)).map(su => su.id_unidad))
+    const misUbicacionIds = new Set([
+      ...lotes.filter(l => misLoteIds.has(l.id_lote)).map(l => String(l.id_ubicacion)),
+      ...unidades.filter(u => misUnidadIds.has(u.id_unidad)).map(u => String(u.id_ubicacion)),
+    ])
+    return ubicacionesRicas.filter(u => misUbicacionIds.has(String(u.id_ubicacion)))
+  }, [ubicacionesRicas, isAdmin, isBodega, user, solicitudes, solLotes, solUnidades, lotes, unidades])
+
   const cards = useMemo(() => [
     {
       key: null, label: 'Todas', color: '#111827', bg: '#fff', border: '#e5e7eb',
@@ -90,15 +127,15 @@ export function UbicacionesPage() {
   ], [tipos])
 
   const counts = useMemo(() => {
-    const c = { total: ubicaciones.length }
-    tipos.forEach(t => { c[String(t.id_tipo_ubicacion)] = ubicaciones.filter(u => String(u.id_tipo_ubicacion) === String(t.id_tipo_ubicacion)).length })
+    const c = { total: ubicacionesVisibles.length }
+    tipos.forEach(t => { c[String(t.id_tipo_ubicacion)] = ubicacionesVisibles.filter(u => String(u.id_tipo_ubicacion) === String(t.id_tipo_ubicacion)).length })
     return c
-  }, [ubicaciones, tipos])
+  }, [ubicacionesVisibles, tipos])
 
   const datosTabla = useMemo(() => {
-    if (!filtro) return ubicacionesRicas
-    return ubicacionesRicas.filter(u => String(u.id_tipo_ubicacion) === filtro)
-  }, [ubicacionesRicas, filtro])
+    if (!filtro) return ubicacionesVisibles
+    return ubicacionesVisibles.filter(u => String(u.id_tipo_ubicacion) === filtro)
+  }, [ubicacionesVisibles, filtro])
 
   const setT = (k, v) => setTipoForm(p => ({ ...p, [k]: v }))
   const setU = (k, v) => setUbForm(p => ({ ...p, [k]: v }))
