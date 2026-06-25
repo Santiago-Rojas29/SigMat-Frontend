@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { ChatWidget } from '../organisms/ChatWidget'
 import { useMobile } from '../../hooks/useMobile'
 import { useToast } from '../../hooks/useToast'
 
@@ -29,6 +30,7 @@ export function AppLayout() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f4f4f5' }}>
 
       {toastPortal}
+      <ChatWidget />
 
       {/* Backdrop móvil */}
       {isMobile && sidebarOpen && (

@@ -59,7 +59,8 @@ export function UsuariosPage() {
         api.get('/usuario'),
         api.get('/rol'),
       ])
-      setUsuarios(uRes.data)
+      const rolRoot = rRes.data.find(r => r.nombre === 'Root')
+      setUsuarios(rolRoot ? uRes.data.filter(u => u.id_rol !== rolRoot.id) : uRes.data)
       setRoles(rRes.data)
     } catch {
       setError('No se pudo cargar la información. Verifica tu conexión.')
@@ -306,7 +307,7 @@ export function UsuariosPage() {
                 size="sm"
                 value={form.id_rol}
                 placeholder="— Seleccionar rol —"
-                options={roles.map(r => ({ value: r.id, label: r.nombre }))}
+                options={roles.filter(r => r.nombre !== 'Root').map(r => ({ value: r.id, label: r.nombre }))}
                 onChange={v => set('id_rol', v)}
               />
             </FormField>
