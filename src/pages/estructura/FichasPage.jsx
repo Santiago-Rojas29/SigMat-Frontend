@@ -411,7 +411,7 @@ export function FichasPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Programa" required>
                 <SearchableSelect
                   size="sm"
@@ -422,7 +422,7 @@ export function FichasPage() {
                 />
               </FormField>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Código de ficha" required>
                 <AppInput size="sm" value={form.codigo_ficha} placeholder="Ej. 2874590"
                   onChange={e => set('codigo_ficha', e.target.value)} />
@@ -431,13 +431,13 @@ export function FichasPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Fecha de inicio" required>
                 <AppDateInput size="sm" value={form.fecha_inicio}
                   onChange={e => set('fecha_inicio', e.target.value)} />
               </FormField>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Fecha de fin" required>
                 <AppDateInput size="sm" value={form.fecha_fin}
                   onChange={e => set('fecha_fin', e.target.value)} />
@@ -446,7 +446,7 @@ export function FichasPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Jornada" required>
                 <AppSelect size="sm" value={form.jornada}
                   onChange={e => set('jornada', e.target.value)}>
@@ -457,7 +457,7 @@ export function FichasPage() {
                 </AppSelect>
               </FormField>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Estado" required>
                 <AppSelect size="sm" value={form.estado}
                   onChange={e => set('estado', e.target.value)}>

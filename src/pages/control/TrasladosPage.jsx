@@ -12,8 +12,10 @@ import { PageHeader }    from '../../components/molecules/PageHeader'
 import { useToast }      from '../../hooks/useToast'
 import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
+import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { groupUsersByRole } from '../../utils/userGroups'
 
 const hoy = () => new Date().toISOString().split('T')[0]
 
@@ -34,8 +36,10 @@ function fmt(val) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function TrasladosPage() {
+  const { user } = useAuth()
   const { hasPermission } = usePermissions()
-  const canEdit = hasPermission('control') || hasPermission('administracion')
+  const isAdmin = hasPermission('administracion')
+  const canEdit = hasPermission('control') || isAdmin
 
   const [traslados,   setTraslados]   = useState([])
   const [unidades,    setUnidades]    = useState([])
@@ -43,6 +47,7 @@ export function TrasladosPage() {
   const [materiales,  setMateriales]  = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [usuarios,    setUsuarios]    = useState([])
+  const [roles,       setRoles]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
 
@@ -62,13 +67,14 @@ export function TrasladosPage() {
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [trRes, uRes, lRes, mRes, ubRes, usRes] = await Promise.all([
+      const [trRes, uRes, lRes, mRes, ubRes, usRes, roRes] = await Promise.all([
         api.get('/traslado'),
         api.get('/unidad'),
         api.get('/lote'),
         api.get('/material'),
         api.get('/ubicacion'),
         api.get('/usuario'),
+        api.get('/rol'),
       ])
       setTraslados(trRes.data)
       setUnidades(uRes.data)
@@ -76,6 +82,7 @@ export function TrasladosPage() {
       setMateriales(mRes.data)
       setUbicaciones(ubRes.data)
       setUsuarios(usRes.data)
+      setRoles(roRes.data)
     } catch { setError('No se pudo cargar la información.') }
     finally { setLoading(false) }
   }, [])
@@ -269,7 +276,7 @@ export function TrasladosPage() {
 
       <DataTable
         columns={columns}
-        data={traslados}
+        data={isAdmin ? traslados : traslados.filter(t => t.id_responsable === user?.id)}
         loading={loading}
         error={error}
         onRetry={loadData}
@@ -280,7 +287,7 @@ export function TrasladosPage() {
         emptyTitle="Sin traslados"
         emptyDescription="Registra el primer traslado del almacén."
         emptyAction={canEdit && (
-          <AppButton size="compact" onClick={() => setModal(true)}>
+          <AppButton size="compact" onClick={() => { setForm({ ...EMPTY_FORM, id_responsable: isAdmin ? '' : user?.id ?? '' }); setItems([]); setModal(true) }}>
             <AppIcon name="plus" /> Nuevo traslado
           </AppButton>
         )}
@@ -290,7 +297,7 @@ export function TrasladosPage() {
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
             {canEdit && (
-              <AppButton size="compact" onClick={() => setModal(true)}>
+              <AppButton size="compact" onClick={() => { setForm({ ...EMPTY_FORM, id_responsable: isAdmin ? '' : user?.id ?? '' }); setItems([]); setModal(true) }}>
                 <AppIcon name="plus" /> Nuevo traslado
               </AppButton>
             )}
@@ -320,13 +327,22 @@ export function TrasladosPage() {
           {/* Responsable + fecha */}
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
-              <SearchableSelect
-                size="sm"
-                value={form.id_responsable}
-                placeholder="— Seleccionar —"
-                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
-                onChange={v => set('id_responsable', v)}
-              />
+              {isAdmin ? (
+                <SearchableSelect
+                  size="sm"
+                  value={form.id_responsable}
+                  placeholder="— Seleccionar —"
+                  options={groupUsersByRole(
+                    usuarios.filter(u => roles.find(r => r.id === u.id_rol)?.nombre !== 'Aprendiz'),
+                    roles,
+                  )}
+                  onChange={v => set('id_responsable', v)}
+                />
+              ) : (
+                <div style={{ padding: '8px 12px', background: '#f4f4f5', borderRadius: 8, fontSize: 13, color: '#374151' }}>
+                  {user?.nombres} {user?.apellidos}
+                </div>
+              )}
             </FormField>
             <FormField label="Fecha" required>
               <AppDateInput size="sm" value={form.fecha_traslado} onChange={e => set('fecha_traslado', e.target.value)} />
@@ -386,7 +402,7 @@ export function TrasladosPage() {
                     </AppSelect>
                   </FormField>
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <FormField label={addTipo === 'unidad' ? 'Seleccionar unidad' : 'Seleccionar lote'}>
                     <SearchableSelect
                       size="sm"

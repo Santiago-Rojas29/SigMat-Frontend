@@ -701,7 +701,7 @@ export function SolicitudesPage() {
                 }}>
                   {/* Selector + botón agregar */}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <SearchableSelect
                         value={addAprendizId}
                         placeholder="Seleccionar aprendiz..."
@@ -789,7 +789,7 @@ export function SolicitudesPage() {
                 Activos — Unidades (no consumibles)
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <SearchableSelect
                     value={addUnidadId}
                     placeholder="Seleccionar unidad disponible..."
@@ -821,7 +821,7 @@ export function SolicitudesPage() {
                 Consumibles / Perecederos — Lotes
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <SearchableSelect
                     value={addLoteId}
                     placeholder="Seleccionar lote con stock..."

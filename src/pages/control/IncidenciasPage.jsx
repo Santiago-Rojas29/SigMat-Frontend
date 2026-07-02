@@ -179,7 +179,6 @@ export function IncidenciasPage() {
         descripcion:      form.descripcion.trim(),
         estado:           'abierta',
       })
-      await api.patch(`/unidad/${form.id_unidad}`, { estado: ESTADO_UNIDAD_MAP[form.tipo] })
       showToast('success', 'Incidencia registrada correctamente.')
       setModalCrear(false)
       load()
@@ -195,9 +194,6 @@ export function IncidenciasPage() {
     setActioning(true)
     try {
       await api.patch(`/incidencia/${estadoInc.id}`, { estado: formEstado })
-      if (formEstado === 'cerrada' && estadoInc.tipo !== 'perdida') {
-        await api.patch(`/unidad/${estadoInc.id_unidad}`, { estado: 'disponible' })
-      }
       showToast('success', 'Estado actualizado correctamente.')
       setEstadoModal(false)
       load()

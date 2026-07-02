@@ -15,6 +15,8 @@ import { AppModal }      from '../../components/organisms/AppModal'
 import { DataTable }     from '../../components/organisms/DataTable'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { UnspscPicker }   from '../../components/molecules/UnspscPicker'
+import { getUnspscByCode } from '../../data/unspsc'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -266,6 +268,14 @@ export function MaterialesPage() {
 
   const columns = [
     {
+      key: 'id',
+      header: 'ID',
+      copyable: true,
+      truncateAt: 8,
+      searchable: false,
+      width: 110,
+    },
+    {
       key: 'nombre',
       header: 'Nombre',
       render: (m) => <span style={{ fontWeight: 600, color: '#111827' }}>{m.nombre}</span>,
@@ -310,13 +320,23 @@ export function MaterialesPage() {
     },
     {
       key: 'codigo_unspsc',
-      header: 'Cód. UNSPSC',
-      width: 120,
-      render: (m) => (
-        <code style={{ fontSize: 12, background: '#f3f4f6', padding: '2px 8px', borderRadius: 5, color: '#374151' }}>
-          {m.codigo_unspsc}
-        </code>
-      ),
+      header: 'UNSPSC',
+      width: 200,
+      render: (m) => {
+        const info = getUnspscByCode(m.codigo_unspsc)
+        return (
+          <div>
+            <code style={{ fontSize: 11, background: '#f3f4f6', padding: '2px 7px', borderRadius: 5, color: '#374151', fontWeight: 700 }}>
+              {m.codigo_unspsc}
+            </code>
+            {info && (
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, lineHeight: 1.3 }}>
+                {info.name}
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'acciones',
@@ -503,17 +523,19 @@ export function MaterialesPage() {
             )}
           </div>
 
-          {/* Descripción + Código UNSPSC */}
-          <div style={{ display: 'flex', gap: 14 }}>
-            <FormField label="Descripción" required>
-              <AppInput size="sm" value={form.descripcion} placeholder="Descripción del material"
-                onChange={e => set('descripcion', e.target.value)} />
-            </FormField>
-            <FormField label="Código UNSPSC" required>
-              <AppInput size="sm" value={form.codigo_unspsc} placeholder="Ej. 43211503"
-                onChange={e => set('codigo_unspsc', e.target.value)} />
-            </FormField>
-          </div>
+          {/* Descripción */}
+          <FormField label="Descripción" required>
+            <AppInput size="sm" value={form.descripcion} placeholder="Descripción del material"
+              onChange={e => set('descripcion', e.target.value)} />
+          </FormField>
+
+          {/* Código UNSPSC */}
+          <FormField label="Código UNSPSC" required>
+            <UnspscPicker
+              value={form.codigo_unspsc}
+              onChange={(code) => set('codigo_unspsc', code)}
+            />
+          </FormField>
 
         </div>
       </AppModal>

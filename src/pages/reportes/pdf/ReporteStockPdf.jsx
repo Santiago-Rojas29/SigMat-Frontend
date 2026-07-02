@@ -2,9 +2,9 @@ import { View, Text } from '@react-pdf/renderer'
 import { SenaDoc, PdfTable, pdfStyles } from './SenaPdf'
 
 const COLS = [
-  { key: 'material',           label: 'Material',     flex: 3 },
+  { key: 'material',           label: 'Material',     flex: 2 },
   { key: 'categoria',          label: 'Categoría',    width: 70 },
-  { key: 'codigo_lote',        label: 'Código lote',  width: 80 },
+  { key: 'codigo_lote',        label: 'Código lote',  flex: 1.5 },
   { key: 'cantidad_disponible',label: 'Disponible',   width: 55 },
   { key: 'cantidad_inicial',   label: 'Inicial',      width: 50 },
   { key: 'porcentaje',         label: '% Stock',      width: 46,

@@ -15,9 +15,19 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const status = err.response?.status
+    if (status === 401) {
       localStorage.removeItem('sigmat_token')
       localStorage.removeItem('sigmat_user')
+      window.location.replace('/login')
+    }
+    if (status === 429) {
+      localStorage.removeItem('sigmat_token')
+      localStorage.removeItem('sigmat_user')
+      const msg =
+        err.response?.data?.mensaje ??
+        'Has superado el límite de solicitudes. Espera un momento e intenta de nuevo.'
+      sessionStorage.setItem('sigmat_rate_error', msg)
       window.location.replace('/login')
     }
     return Promise.reject(err)

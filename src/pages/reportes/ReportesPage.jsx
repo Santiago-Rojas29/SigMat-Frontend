@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { pdf } from '@react-pdf/renderer'
 import { PageHeader }    from '../../components/molecules/PageHeader'
 import { AppModal }      from '../../components/organisms/AppModal'
@@ -8,6 +8,7 @@ import { AppSelect }     from '../../components/atoms/AppSelect'
 import { FormField }     from '../../components/molecules/FormField'
 import { useToast }      from '../../hooks/useToast'
 import { AppIcon }       from '../../components/atoms/AppIcon'
+import { useAuth }       from '../../context/AuthContext'
 import api               from '../../services/api'
 
 import { ReporteSolicitudesPdf } from './pdf/ReporteSolicitudesPdf'
@@ -17,11 +18,16 @@ import { ReporteMorososPdf }     from './pdf/ReporteMorososPdf'
 import { ReporteKardexPdf }      from './pdf/ReporteKardexPdf'
 import { ReporteIncidenciasPdf } from './pdf/ReporteIncidenciasPdf'
 import { ReporteResumenPdf }     from './pdf/ReporteResumenPdf'
+import { ReportePrestamosPdf }   from './pdf/ReportePrestamosPdf'
 
 // ── Config de cada tipo de reporte ───────────────────────────────────────────
+// adminOnly: true      → solo Administrador y Responsable de Bodega
+// instructorOnly: true → solo Instructor
+// aprendizOnly: true   → solo Aprendiz
 const REPORTES = [
   {
     id: 'resumen',
+    adminOnly: true,
     titulo: 'Resumen General',
     descripcion: 'KPIs del período, solicitudes por estado, materiales más solicitados, incidencias y stock crítico.',
     icon: 'dashboard',
@@ -41,6 +47,7 @@ const REPORTES = [
   },
   {
     id: 'solicitudes',
+    adminOnly: true,
     titulo: 'Solicitudes',
     descripcion: 'Historial de solicitudes filtrable por fecha, estado y tipo de flujo (instructor/aprendiz).',
     icon: 'file',
@@ -81,6 +88,7 @@ const REPORTES = [
   },
   {
     id: 'stock-critico',
+    adminOnly: true,
     titulo: 'Stock Crítico',
     descripcion: 'Lotes cuya cantidad disponible está por debajo del umbral configurado.',
     icon: 'warn',
@@ -96,6 +104,7 @@ const REPORTES = [
   },
   {
     id: 'lotes-vencimiento',
+    adminOnly: true,
     titulo: 'Lotes por Vencer',
     descripcion: 'Lotes perecederos vencidos o próximos a vencer en el rango de días configurado.',
     icon: 'clock',
@@ -111,6 +120,7 @@ const REPORTES = [
   },
   {
     id: 'morosos',
+    adminOnly: true,
     titulo: 'Usuarios con Mora',
     descripcion: 'Usuarios con préstamos activos que han superado su fecha límite de devolución.',
     icon: 'users',
@@ -124,6 +134,7 @@ const REPORTES = [
   },
   {
     id: 'kardex',
+    adminOnly: true,
     titulo: 'Movimientos (Kardex)',
     descripcion: 'Historial completo de entradas, salidas, ajustes y traslados con trazabilidad por material.',
     icon: 'chart',
@@ -153,6 +164,7 @@ const REPORTES = [
   },
   {
     id: 'incidencias',
+    adminOnly: true,
     titulo: 'Incidencias',
     descripcion: 'Registro de daños, pérdidas y mantenimientos con material afectado y responsable.',
     icon: 'alert',
@@ -188,6 +200,100 @@ const REPORTES = [
     PdfComp: ReporteIncidenciasPdf,
     previewCols: ['fecha_incidencia','tipo','estado','material','responsable'],
   },
+  {
+    id: 'mis-solicitudes',
+    instructorOnly: true,
+    titulo: 'Mis Solicitudes',
+    descripcion: 'Solicitudes que creaste o que aprobaste como instructor, filtrables por fecha y estado.',
+    icon: 'file',
+    color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe',
+    filtros: [
+      { id: 'desde',  label: 'Desde',  type: 'date' },
+      { id: 'hasta',  label: 'Hasta',  type: 'date' },
+      { id: 'estado', label: 'Estado', type: 'select',
+        options: [
+          { value: '', label: 'Todos' },
+          { value: 'pendiente_instructor', label: 'Pend. Instructor' },
+          { value: 'pendiente_admin',      label: 'Pend. Admin' },
+          { value: 'pendiente_bodega',     label: 'Pend. Bodega' },
+          { value: 'aprobado',  label: 'Aprobado'  },
+          { value: 'entregado', label: 'Entregado' },
+          { value: 'rechazado', label: 'Rechazado' },
+          { value: 'cancelado', label: 'Cancelado' },
+        ],
+      },
+    ],
+    endpoint: 'mis-solicitudes',
+    buildParams: f => ({ desde: f.desde, hasta: f.hasta, estado: f.estado }),
+    buildFiltros: f => [
+      { label: 'Desde',  value: f.desde  },
+      { label: 'Hasta',  value: f.hasta  },
+      { label: 'Estado', value: f.estado },
+    ],
+    PdfComp: ReporteSolicitudesPdf,
+    previewCols: ['fecha_solicitud','solicitante','tipo_flujo','estado','fecha_entrega'],
+  },
+  {
+    id: 'mis-morosos',
+    instructorOnly: true,
+    titulo: 'Morosos de mi Ficha',
+    descripcion: 'Aprendices de tus fichas con préstamos activos vencidos.',
+    icon: 'users',
+    color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe',
+    filtros: [],
+    endpoint: 'mis-morosos',
+    buildParams: () => ({}),
+    buildFiltros: () => [],
+    PdfComp: ReporteMorososPdf,
+    previewCols: ['usuario','correo','prestamos_vencidos','dias_vencido'],
+  },
+  {
+    id: 'aprendiz-solicitudes',
+    aprendizOnly: true,
+    titulo: 'Mis Solicitudes',
+    descripcion: 'Historial de tus solicitudes con estado, tipo, instructor asignado y fechas de respuesta.',
+    icon: 'file',
+    color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe',
+    filtros: [
+      { id: 'desde',  label: 'Desde',  type: 'date' },
+      { id: 'hasta',  label: 'Hasta',  type: 'date' },
+      { id: 'estado', label: 'Estado', type: 'select',
+        options: [
+          { value: '', label: 'Todos' },
+          { value: 'pendiente_instructor', label: 'Pend. Instructor' },
+          { value: 'pendiente_admin',      label: 'Pend. Admin' },
+          { value: 'pendiente_bodega',     label: 'Pend. Bodega' },
+          { value: 'aprobado',  label: 'Aprobado'  },
+          { value: 'entregado', label: 'Entregado' },
+          { value: 'rechazado', label: 'Rechazado' },
+          { value: 'cancelado', label: 'Cancelado' },
+        ],
+      },
+    ],
+    endpoint: 'mis-solicitudes',
+    buildParams: f => ({ desde: f.desde, hasta: f.hasta, estado: f.estado }),
+    buildFiltros: f => [
+      { label: 'Desde',  value: f.desde  },
+      { label: 'Hasta',  value: f.hasta  },
+      { label: 'Estado', value: f.estado },
+    ],
+    PdfComp: ReporteSolicitudesPdf,
+    previewCols: ['fecha_solicitud','tipo_flujo','estado','instructor','fecha_entrega'],
+  },
+  {
+    id: 'aprendiz-prestamos',
+    aprendizOnly: true,
+    titulo: 'Mis Préstamos',
+    descripcion: 'Préstamos activos y finalizados con fecha límite y estado de devolución. Útil para evitar caer en mora.',
+    icon: 'chart',
+    color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
+    filtros: [],
+    endpoint: 'mis-prestamos',
+    buildParams: () => ({}),
+    buildFiltros: () => [],
+    PdfComp: ReportePrestamosPdf,
+    previewCols: ['fecha_solicitud','fecha_limite','tipo_prestamo','estado','devolucion','fecha_devolucion'],
+  },
 ]
 
 // ── Helpers UI ────────────────────────────────────────────────────────────────
@@ -201,10 +307,39 @@ const COL_LABELS = {
   dias_vencido: 'Días mora', fecha_movimiento: 'Fecha', tipo_movimiento: 'Tipo',
   codigo: 'Código', cantidad: 'Cantidad', saldo: 'Saldo',
   fecha_incidencia: 'Fecha', tipo: 'Tipo', responsable: 'Responsable',
+  instructor: 'Instructor', fecha_limite: 'Vence', tipo_prestamo: 'Tipo',
+  devolucion: 'Devolución', fecha_devolucion: 'F. Dev.',
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export function ReportesPage() {
+  const { user } = useAuth()
+  const [rolNombre, setRolNombre] = useState(null)
+
+  useEffect(() => {
+    if (!user?.id_rol) return
+    api.get('/rol')
+      .then(({ data }) => {
+        const found = data.find(r => r.id === user.id_rol)
+        setRolNombre(found?.nombre ?? null)
+      })
+      .catch(() => {})
+  }, [user?.id_rol])
+
+  const isAdminOrBodega  = rolNombre === 'Administrador' || rolNombre === 'Responsable de Bodega'
+  const isInstructor     = rolNombre === 'Instructor'
+  const isAprendiz       = rolNombre === 'Aprendiz'
+
+  const reportesVisibles = useMemo(() =>
+    REPORTES.filter(r => {
+      if (r.adminOnly)      return isAdminOrBodega
+      if (r.instructorOnly) return isInstructor
+      if (r.aprendizOnly)   return isAprendiz
+      return true
+    }),
+    [isAdminOrBodega, isInstructor, isAprendiz],
+  )
+
   const [active, setActive]     = useState(null)   // reporte config activo
   const [filtros, setFiltros]   = useState({})
   const [data, setData]         = useState(null)
@@ -274,12 +409,21 @@ export function ReportesPage() {
       />
 
       {/* Grid de cards */}
+      {reportesVisibles.length === 0 ? (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 12, padding: '48px 0', color: '#9CA3AF',
+        }}>
+          <AppIcon name="printer" size={40} style={{ color: '#D1FAE5' }} />
+          <p style={{ fontSize: 14, margin: 0 }}>No tienes reportes disponibles para tu rol.</p>
+        </div>
+      ) : (
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: 18,
       }}>
-        {REPORTES.map(rep => (
+        {reportesVisibles.map(rep => (
           <button
             key={rep.id}
             onClick={() => openModal(rep)}
@@ -326,6 +470,7 @@ export function ReportesPage() {
           </button>
         ))}
       </div>
+      )}
 
       {/* Modal de reporte */}
       {active && (

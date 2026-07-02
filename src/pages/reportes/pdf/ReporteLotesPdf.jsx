@@ -2,8 +2,8 @@ import { View, Text } from '@react-pdf/renderer'
 import { SenaDoc, PdfTable, pdfStyles } from './SenaPdf'
 
 const COLS = [
-  { key: 'codigo_lote',         label: 'Código lote',     width: 80 },
-  { key: 'material',            label: 'Material',        flex: 3   },
+  { key: 'codigo_lote',         label: 'Código lote',     flex: 1.5 },
+  { key: 'material',            label: 'Material',        flex: 2   },
   { key: 'categoria',           label: 'Categoría',       width: 68 },
   { key: 'fecha_vencimiento',   label: 'F. Vencimiento',  width: 72 },
   { key: 'dias_para_vencer',    label: 'Días',            width: 40,

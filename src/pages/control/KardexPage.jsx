@@ -33,6 +33,7 @@ const TIPO_OPTIONS = [
 function fmt(val) {
   if (!val) return '—'
   return new Date(val).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
@@ -171,18 +172,15 @@ export function KardexPage() {
   const datosFiltrados = useMemo(() => {
     return kardexVisible.filter(k => {
       if (filtroTipo && k.tipo_movimiento !== filtroTipo) return false
-      if (filtroDesde) {
-        const desde = new Date(filtroDesde)
-        if (new Date(k.fecha_movimiento) < desde) return false
-      }
-      if (filtroHasta) {
-        const hasta = new Date(filtroHasta)
-        hasta.setHours(23, 59, 59)
-        if (new Date(k.fecha_movimiento) > hasta) return false
+      if (filtroDesde || filtroHasta) {
+        const fechaKardex = new Date(k.fecha_movimiento)
+          .toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+        if (filtroDesde && fechaKardex < filtroDesde) return false
+        if (filtroHasta && fechaKardex > filtroHasta) return false
       }
       return true
     })
-  }, [kardexRico, filtroTipo, filtroDesde, filtroHasta])
+  }, [kardexVisible, filtroTipo, filtroDesde, filtroHasta])
 
   // ── Contadores ────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FormField }    from '../molecules/FormField'
 import { AppButton }    from '../atoms/AppButton'
@@ -20,6 +20,14 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    const msg = sessionStorage.getItem('sigmat_rate_error')
+    if (msg) {
+      sessionStorage.removeItem('sigmat_rate_error')
+      showToast('error', msg)
+    }
+  }, [])
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!correo || !contrasena) {
@@ -33,7 +41,13 @@ export function LoginForm() {
       const dest = result.user.id_sede === null ? '/root/centros' : '/dashboard'
       navigate(dest, { state: { loginSuccess: true } })
     } catch (err) {
-      if (err?.response?.status === 403) {
+      const status = err?.response?.status
+      if (status === 429) {
+        const msg =
+          err.response?.data?.mensaje ??
+          'Demasiados intentos de inicio de sesión. Espera un minuto e intenta de nuevo.'
+        showToast('error', msg)
+      } else if (status === 403) {
         showToast('error', 'Tu cuenta está inactiva. Contacta al administrador.')
       } else {
         showToast('error', 'Correo o contraseña incorrectos. Verifica tus datos.')

@@ -239,7 +239,7 @@ export function ProgramasPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Área" required>
                 <SearchableSelect
                   size="sm"
@@ -250,7 +250,7 @@ export function ProgramasPage() {
                 />
               </FormField>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FormField label="Nivel de formación" required>
                 <AppSelect size="sm" value={form.nivel_formacion}
                   onChange={e => set('nivel_formacion', e.target.value)}>

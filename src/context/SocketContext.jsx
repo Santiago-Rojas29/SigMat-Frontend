@@ -18,11 +18,12 @@ export function SocketProvider({ children }) {
 
     const s = io(`${BASE_URL}/notifications`, {
       auth: { token },
-      transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 3000,
       reconnectionAttempts: 5,
     })
+
+    s.on('connect_error', () => {})
 
     setSocket(s)
 

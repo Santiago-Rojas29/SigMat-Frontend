@@ -17,6 +17,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { groupUsersByRole } from '../../utils/userGroups'
 const CATEGORIAS_MAT = {
   'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
   'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
@@ -173,7 +174,7 @@ export function LotesPage() {
   }, [roles, user])
 
   const lotesVisibles = useMemo(() => {
-    if (isAdmin) return lotesRicos
+    if (isAdmin || isBodega) return lotesRicos
     const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
     const misLoteIds = new Set(solLotes.filter(sl => misSolIds.has(sl.id_solicitud)).map(sl => sl.id_lote))
     return lotesRicos.filter(l => misLoteIds.has(l.id_lote))
@@ -246,7 +247,7 @@ export function LotesPage() {
       const payload = {
         id_material:         form.id_material,
         id_responsable:      form.id_responsable,
-        id_ubicacion:        form.id_ubicacion,
+        id_ubicacion:        String(form.id_ubicacion),
         codigo_lote:         form.codigo_lote,
         cantidad_inicial:    Number(form.cantidad_inicial),
         cantidad_disponible: Number(form.cantidad_disponible),
@@ -314,8 +315,9 @@ export function LotesPage() {
       } else {
         await api.post('/lote-ficha', { id_lote: fichaModal.id_lote, id_ficha: fichaForm.id_ficha, cantidad: Number(fichaForm.cantidad) })
       }
-      const lfRes = await api.get('/lote-ficha')
+      const [lfRes, lotesRes] = await Promise.all([api.get('/lote-ficha'), api.get('/lote')])
       setLoteFichas(lfRes.data)
+      setLotes(lotesRes.data)
       setFichaForm({ id_ficha: '', cantidad: '' })
       setFichaEditId(null)
     } catch (e) {
@@ -328,7 +330,9 @@ export function LotesPage() {
     setFichaDeleting(id)
     try {
       await api.delete(`/lote-ficha/${id}`)
+      const lotesRes = await api.get('/lote')
       setLoteFichas(prev => prev.filter(lf => lf.id !== id))
+      setLotes(lotesRes.data)
     } catch (e) {
       const msg = e.response?.data?.message
       showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
@@ -664,7 +668,7 @@ export function LotesPage() {
                 size="sm"
                 value={form.id_responsable}
                 placeholder="— Seleccionar —"
-                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                options={groupUsersByRole(usuarios, roles)}
                 onChange={v => set('id_responsable', v)}
               />
             </FormField>

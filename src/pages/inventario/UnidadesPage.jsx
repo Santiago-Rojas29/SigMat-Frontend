@@ -16,6 +16,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { groupUsersByRole } from '../../utils/userGroups'
 const ESTADOS = {
   disponible:        { label: 'Disponible',       variant: 'success'  },
   prestado:          { label: 'Prestado',          variant: 'info'     },
@@ -122,7 +123,7 @@ export function UnidadesPage() {
   }, [roles, user])
 
   const unidadesVisibles = useMemo(() => {
-    if (isAdmin) return unidadesRicas
+    if (isAdmin || isBodega) return unidadesRicas
     const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
     const misUnidadIds = new Set(solUnidades.filter(su => misSolIds.has(su.id_solicitud)).map(su => su.id_unidad))
     return unidadesRicas.filter(u => misUnidadIds.has(u.id_unidad))
@@ -191,7 +192,7 @@ export function UnidadesPage() {
     }
     setSaving(true)
     try {
-      const payload = { ...form, id_ficha: esBodega ? (form.id_ficha || null) : null }
+      const payload = { ...form, id_ubicacion: String(form.id_ubicacion), id_ficha: esBodega ? (form.id_ficha || null) : null }
       if (modal.mode === 'create') {
         await api.post('/unidad', payload)
         showToast('success', 'Unidad creada correctamente.')
@@ -449,7 +450,7 @@ export function UnidadesPage() {
                 size="sm"
                 value={form.id_responsable}
                 placeholder="— Seleccionar —"
-                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                options={groupUsersByRole(usuarios, roles)}
                 onChange={v => set('id_responsable', v)}
               />
             </FormField>

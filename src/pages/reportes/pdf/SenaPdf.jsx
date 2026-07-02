@@ -56,10 +56,12 @@ export const pdfStyles = StyleSheet.create({
     backgroundColor: GREEN,
     paddingVertical: 5,
   },
-  th: { fontFamily: 'Helvetica-Bold', color: '#ffffff', fontSize: 8, paddingHorizontal: 6 },
-  trEven: { flexDirection: 'row', backgroundColor: STRIPE,    borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'center' },
-  trOdd:  { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'center' },
-  td: { fontSize: 8, color: DARK, paddingHorizontal: 6, paddingVertical: 3 },
+  thCell: { paddingHorizontal: 6, justifyContent: 'center' },
+  th: { fontFamily: 'Helvetica-Bold', color: '#ffffff', fontSize: 8 },
+  trEven: { flexDirection: 'row', backgroundColor: STRIPE,    borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'stretch' },
+  trOdd:  { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 0.5, borderBottomColor: '#D1FAE5', minHeight: 22, alignItems: 'stretch' },
+  tdCell: { paddingHorizontal: 6, paddingVertical: 4, justifyContent: 'center' },
+  td: { fontSize: 8, color: DARK },
   // ── Misc ──
   noData:   { fontSize: 9, color: MUTED, textAlign: 'center', padding: 16 },
   total:    { fontSize: 8, color: MUTED, marginTop: 6 },
@@ -146,17 +148,25 @@ export function PdfTable({ columns, rows }) {
     <View style={pdfStyles.table}>
       <View style={pdfStyles.thead}>
         {columns.map(col => (
-          <Text key={col.key} style={[pdfStyles.th, col.width ? { width: col.width } : { flex: col.flex ?? 1 }]}>
-            {col.label}
-          </Text>
+          <View key={col.key} style={[
+            pdfStyles.thCell,
+            col.width ? { width: col.width } : { flex: col.flex ?? 1 },
+          ]}>
+            <Text style={pdfStyles.th}>{col.label}</Text>
+          </View>
         ))}
       </View>
       {rows.map((row, idx) => (
         <View key={idx} style={idx % 2 === 0 ? pdfStyles.trEven : pdfStyles.trOdd} wrap={false}>
           {columns.map(col => (
-            <Text key={col.key} style={[pdfStyles.td, col.width ? { width: col.width } : { flex: col.flex ?? 1 }]}>
-              {col.render ? col.render(row) : String(row[col.key] ?? '—')}
-            </Text>
+            <View key={col.key} style={[
+              pdfStyles.tdCell,
+              col.width ? { width: col.width } : { flex: col.flex ?? 1 },
+            ]}>
+              <Text style={pdfStyles.td}>
+                {col.render ? col.render(row) : String(row[col.key] ?? '—')}
+              </Text>
+            </View>
           ))}
         </View>
       ))}

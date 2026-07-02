@@ -10,6 +10,8 @@ import { MaterialesChart }             from './dashboard/MaterialesChart'
 import { IncidenciasChart }            from './dashboard/IncidenciasChart'
 import { StockCriticoList }            from './dashboard/StockCriticoList'
 import { MorososTable }                from './dashboard/MorososTable'
+import { DashboardPersonal }           from './dashboard/DashboardPersonal'
+import { DashboardRoot }               from './dashboard/DashboardRoot'
 
 const MODULE_LABELS = {
   materiales: 'Materiales',
@@ -55,21 +57,59 @@ const greeting = () => {
   return 'Buenas noches'
 }
 
+const ROL_SUBTITLE = {
+  'Root':                  'Vista general del sistema — gestión de centros y sedes',
+  'Administrador':         'Panel de administración de tu sede',
+  'Responsable de Bodega': 'Panel de control de inventario y movimientos',
+  'Instructor':            'Tu actividad en el sistema',
+  'Aprendiz':              'Tu actividad en el sistema',
+}
+
 export function DashboardPage() {
   const { user }              = useAuth()
   const { modules, loading: loadingModules } = usePermissions()
 
+  const [rolNombre,    setRolNombre]    = useState(null)
+  const [sedeNombre,   setSedeNombre]   = useState(null)
   const [stats,        setStats]        = useState(null)
   const [loadingStats, setLoadingStats] = useState(true)
   const [statsError,   setStatsError]   = useState(null)
 
+  // Resolver nombre del rol
   useEffect(() => {
+    if (!user?.id_rol) return
+    api.get('/rol')
+      .then(({ data }) => {
+        const found = data.find(r => r.id === user.id_rol)
+        setRolNombre(found?.nombre ?? null)
+      })
+      .catch(() => {})
+  }, [user?.id_rol])
+
+  // Resolver nombre de la sede
+  useEffect(() => {
+    if (!user?.id_sede) return
+    api.get(`/sede/${user.id_sede}`)
+      .then(({ data }) => setSedeNombre(data?.nombre ?? null))
+      .catch(() => {})
+  }, [user?.id_sede])
+
+  // Cargar stats globales solo para Admin y Bodega
+  useEffect(() => {
+    if (rolNombre === null) return                              // todavía resolviendo
+    const isGlobal = rolNombre === 'Administrador' || rolNombre === 'Responsable de Bodega'
+    if (!isGlobal) { setLoadingStats(false); return }
+
     setLoadingStats(true)
     api.get('/dashboard/stats')
       .then(({ data }) => { setStats(data); setStatsError(null) })
       .catch(() => setStatsError('No se pudieron cargar las estadísticas'))
       .finally(() => setLoadingStats(false))
-  }, [])
+  }, [rolNombre])
+
+  const displayName = user?.nombres
+    ? `${user.nombres} ${user.apellidos ?? ''}`.trim()
+    : (user?.correo ?? 'Usuario')
 
   return (
     <div style={{ width: '100%' }}>
@@ -102,11 +142,17 @@ export function DashboardPage() {
             {greeting()},
           </p>
           <h1 style={{ fontSize:22, fontWeight:700, margin:'0 0 6px' }}>
-            {user?.correo ?? 'Usuario'}
+            {displayName}
           </h1>
           <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
             <p style={{ fontSize:12.5, opacity:0.75, margin:0 }}>
-              SIGMAT — Sistema de Gestión de Materiales y Activos Tecnológicos
+              {rolNombre === 'Administrador' && sedeNombre
+              ? `Administración de la sede ${sedeNombre}`
+              : rolNombre === 'Responsable de Bodega' && sedeNombre
+              ? `Control de inventario — sede ${sedeNombre}`
+              : rolNombre
+              ? ROL_SUBTITLE[rolNombre]
+              : 'SIGMAT — Sistema de Gestión de Materiales y Activos Tecnológicos'}
             </p>
             {!loadingModules && modules.length > 0 && (
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -132,7 +178,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Error banner */}
+      {/* Error banner (solo para vista global) */}
       {statsError && (
         <div style={{
           background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)',
@@ -144,26 +190,35 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <KpiCards kpis={stats?.kpis} loading={loadingStats} />
+      {/* Contenido según rol */}
+      {rolNombre === 'Root' && (
+        <DashboardRoot />
+      )}
 
-      {/* Row 1: Materiales no devueltos + Solicitudes por mes */}
-      <div className="dash-grid dash-row1">
-        <MaterialesNoDevueltosChart data={stats?.materialesNoDevueltos} loading={loadingStats} />
-        <SolicitudesMesChart />
-      </div>
+      {(rolNombre === 'Instructor' || rolNombre === 'Aprendiz') && (
+        <DashboardPersonal />
+      )}
 
-      {/* Row 2: Materiales horizontales + Incidencias */}
-      <div className="dash-grid dash-row2">
-        <MaterialesChart   data={stats?.materialesSolicitados} loading={loadingStats} />
-        <IncidenciasChart  data={stats?.incidenciasTipo}       loading={loadingStats} />
-      </div>
+      {(rolNombre === 'Administrador' || rolNombre === 'Responsable de Bodega') && (
+        <>
+          <KpiCards kpis={stats?.kpis} loading={loadingStats} />
 
-      {/* Row 3: Stock crítico + Morosos */}
-      <div className="dash-grid dash-row3">
-        <StockCriticoList data={stats?.stockCritico}    loading={loadingStats} />
-        <MorososTable     data={stats?.usuariosMorosos} loading={loadingStats} />
-      </div>
+          <div className="dash-grid dash-row1">
+            <MaterialesNoDevueltosChart data={stats?.materialesNoDevueltos} loading={loadingStats} />
+            <SolicitudesMesChart />
+          </div>
+
+          <div className="dash-grid dash-row2">
+            <MaterialesChart   data={stats?.materialesSolicitados} loading={loadingStats} />
+            <IncidenciasChart  data={stats?.incidenciasTipo}       loading={loadingStats} />
+          </div>
+
+          <div className="dash-grid dash-row3">
+            <StockCriticoList data={stats?.stockCritico}    loading={loadingStats} />
+            <MorososTable     data={stats?.usuariosMorosos} loading={loadingStats} />
+          </div>
+        </>
+      )}
 
     </div>
   )

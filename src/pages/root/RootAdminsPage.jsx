@@ -5,8 +5,10 @@ import { AppInput }         from '../../components/atoms/AppInput'
 import { AppSelect }        from '../../components/atoms/AppSelect'
 import { SearchableSelect } from '../../components/atoms/SearchableSelect'
 import { Badge }            from '../../components/atoms/Badge'
+import { IconButton }       from '../../components/atoms/IconButton'
 import { FormField }        from '../../components/molecules/FormField'
 import { PageHeader }       from '../../components/molecules/PageHeader'
+import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
 import { useToast }         from '../../hooks/useToast'
 import { AppModal }         from '../../components/organisms/AppModal'
 import { DataTable }        from '../../components/organisms/DataTable'
@@ -31,10 +33,15 @@ export function RootAdminsPage() {
   const [roles,    setRoles]    = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
-  const [modal,    setModal]    = useState(false)
+
+  const [modal,    setModal]    = useState(null)   // null | { mode: 'create'|'edit', data? }
   const [form,     setForm]     = useState(EMPTY)
   const [saving,   setSaving]   = useState(false)
   const [showPass, setShowPass] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting,     setDeleting]     = useState(false)
+
   const { showToast, toastPortal } = useToast()
 
   const load = useCallback(async () => {
@@ -58,16 +65,50 @@ export function RootAdminsPage() {
     usuarios.filter(u => u.id_sede && adminRol && u.id_rol === adminRol.id),
   [usuarios, adminRol])
 
-  const sedeMap = Object.fromEntries(sedes.map(s => [s.id_sede, s.nombre]))
-  const centroMap = Object.fromEntries(centros.map(c => [c.id, c.nombre]))
+  const sedeMap    = Object.fromEntries(sedes.map(s => [s.id_sede, s.nombre]))
+  const centroMap  = Object.fromEntries(centros.map(c => [c.id, c.nombre]))
   const sedeCentro = Object.fromEntries(sedes.map(s => [s.id_sede, centroMap[s.id_centro] ?? '—']))
 
-  const sedesConAdmin = new Set(admins.map(a => a.id_sede))
-  const sedesSinAdmin = sedes.filter(s => !sedesConAdmin.has(s.id_sede))
+  const sedesConAdmin  = new Set(admins.map(a => a.id_sede))
+  const sedesSinAdmin  = sedes.filter(s => !sedesConAdmin.has(s.id_sede))
 
-  const handleCrear = async () => {
-    if (!form.id_sede || !form.nombres || !form.correo || !form.contrasena) {
+  // Sedes disponibles en el selector según modo
+  const sedesDisponibles = useMemo(() => {
+    if (!modal) return sedesSinAdmin
+    if (modal.mode === 'create') return sedesSinAdmin
+    // En edición: la sede actual del admin + las que no tienen admin
+    const sedeActual = sedes.find(s => s.id_sede === modal.data?.id_sede)
+    const opts = sedesSinAdmin.filter(s => s.id_sede !== modal.data?.id_sede)
+    return sedeActual ? [sedeActual, ...opts] : opts
+  }, [modal, sedes, sedesSinAdmin])
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  const openCreate = () => {
+    setForm(EMPTY); setShowPass(false)
+    setModal({ mode: 'create' })
+  }
+
+  const openEdit = (u) => {
+    setForm({
+      id_sede: u.id_sede, tipo_documento: u.tipo_documento ?? 'cc',
+      numero_documento: u.numero_documento ?? '', nombres: u.nombres,
+      apellidos: u.apellidos, correo: u.correo,
+      telefono: u.telefono ?? '', contrasena: '',
+    })
+    setShowPass(false)
+    setModal({ mode: 'edit', data: u })
+  }
+
+  const closeModal = () => setModal(null)
+
+  const handleSave = async () => {
+    if (!form.id_sede || !form.nombres || !form.correo) {
       showToast('error', 'Completa todos los campos obligatorios.')
+      return
+    }
+    if (modal.mode === 'create' && !form.contrasena) {
+      showToast('error', 'La contraseña es obligatoria al crear.')
       return
     }
     if (!adminRol) {
@@ -76,18 +117,36 @@ export function RootAdminsPage() {
     }
     setSaving(true)
     try {
-      await api.post('/usuario', {
-        ...form,
-        id_rol: adminRol.id,
-        estado: 'activo',
-      })
-      showToast('success', 'Administrador creado y asignado a la sede.')
-      setModal(false); load()
+      const payload = { ...form, id_rol: adminRol.id, estado: 'activo' }
+      if (modal.mode === 'edit' && !payload.contrasena) delete payload.contrasena
+
+      if (modal.mode === 'create') {
+        await api.post('/usuario', payload)
+        showToast('success', 'Administrador creado y asignado a la sede.')
+      } else {
+        await api.patch(`/usuario/${modal.data.id}`, payload)
+        showToast('success', 'Administrador actualizado correctamente.')
+      }
+      closeModal(); load()
     } catch (e) {
       const msg = e.response?.data?.message
-      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al crear.'))
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al guardar.'))
     } finally { setSaving(false) }
   }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await api.delete(`/usuario/${deleteTarget.id}`)
+      showToast('success', 'Administrador eliminado correctamente.')
+      setDeleteTarget(null); load()
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
+    } finally { setDeleting(false) }
+  }
+
+  // ── Columns ────────────────────────────────────────────────────────────────
 
   const columns = [
     { key: 'id', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110 },
@@ -109,7 +168,22 @@ export function RootAdminsPage() {
       key: 'estado', header: 'Estado',
       render: u => <Badge variant={u.estado === 'activo' ? 'success' : 'default'}>{u.estado === 'activo' ? 'Activo' : 'Inactivo'}</Badge>,
     },
+    {
+      key: 'acciones', header: '', align: 'right', width: 90,
+      render: u => (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
+            <AppIcon name="edit" size={15} />
+          </IconButton>
+          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}>
+            <AppIcon name="trash" size={15} />
+          </IconButton>
+        </div>
+      ),
+    },
   ]
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -138,28 +212,37 @@ export function RootAdminsPage() {
         searchable searchPlaceholder="Buscar por nombre, correo, sede…" pageSize={10}
         emptyTitle="Sin administradores" emptyDescription="Crea el primer administrador para una sede."
         emptyAction={
-          <AppButton size="compact" onClick={() => { setForm(EMPTY); setShowPass(false); setModal(true) }}>
+          <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Crear administrador
           </AppButton>
         }
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={load}><AppIcon name="refresh" /> Actualizar</AppButton>
-            <AppButton size="compact" onClick={() => { setForm(EMPTY); setShowPass(false); setModal(true) }} disabled={sedesSinAdmin.length === 0}>
+            <AppButton size="compact" onClick={openCreate} disabled={sedesSinAdmin.length === 0}>
               <AppIcon name="plus" /> Crear administrador
             </AppButton>
           </>
         }
       />
 
-      <AppModal isOpen={modal} onClose={() => setModal(false)} maxWidth={580}
-        title="Crear administrador de sede"
-        footer={<><AppButton variant="ghost" size="compact" onClick={() => setModal(false)}>Cancelar</AppButton><AppButton size="compact" onClick={handleCrear} loading={saving}>Crear administrador</AppButton></>}
+      {/* Modal crear / editar */}
+      <AppModal
+        isOpen={!!modal} onClose={closeModal} maxWidth={580}
+        title={modal?.mode === 'create' ? 'Crear administrador de sede' : 'Editar administrador'}
+        footer={
+          <>
+            <AppButton variant="ghost" size="compact" onClick={closeModal}>Cancelar</AppButton>
+            <AppButton size="compact" onClick={handleSave} loading={saving}>
+              {modal?.mode === 'create' ? 'Crear administrador' : 'Guardar cambios'}
+            </AppButton>
+          </>
+        }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FormField label="Sede" required>
             <SearchableSelect size="sm" value={form.id_sede} placeholder="Seleccionar sede"
-              options={sedesSinAdmin.map(s => ({ value: s.id_sede, label: `${s.nombre} — ${centroMap[s.id_centro] ?? ''}` }))}
+              options={sedesDisponibles.map(s => ({ value: s.id_sede, label: `${s.nombre} — ${centroMap[s.id_centro] ?? ''}` }))}
               onChange={v => set('id_sede', v)} />
           </FormField>
           <div style={{ display: 'flex', gap: 14 }}>
@@ -176,16 +259,35 @@ export function RootAdminsPage() {
           </div>
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Correo" required><AppInput size="sm" type="email" value={form.correo} onChange={e => set('correo', e.target.value)} /></FormField>
-            <FormField label="Teléfono" required><AppInput size="sm" value={form.telefono} onChange={e => set('telefono', e.target.value)} /></FormField>
+            <FormField label="Teléfono"><AppInput size="sm" value={form.telefono} onChange={e => set('telefono', e.target.value)} /></FormField>
           </div>
-          <FormField label="Contraseña" required>
-            <AppInput size="sm" type={showPass ? 'text' : 'password'} value={form.contrasena} placeholder="Mínimo 8 caracteres"
+          <FormField
+            label={modal?.mode === 'edit' ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}
+            required={modal?.mode === 'create'}
+          >
+            <AppInput size="sm" type={showPass ? 'text' : 'password'} value={form.contrasena}
+              placeholder={modal?.mode === 'edit' ? 'Sin cambios' : 'Mínimo 8 caracteres'}
               onChange={e => set('contrasena', e.target.value)}
               rightIcon={showPass ? <AppIcon name="eye-off" size={16} /> : <AppIcon name="eye" size={15} />}
               onRightIconClick={() => setShowPass(p => !p)} />
           </FormField>
         </div>
       </AppModal>
+
+      {/* Confirmar eliminación */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Eliminar administrador"
+        description={
+          deleteTarget
+            ? <>¿Eliminar a <strong>{deleteTarget.nombres} {deleteTarget.apellidos}</strong>? La sede quedará sin administrador.</>
+            : null
+        }
+        confirmLabel="Sí, eliminar"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+      />
     </>
   )
 }

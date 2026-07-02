@@ -11,7 +11,7 @@ const COLS = [
   { key: 'estado',           label: 'Estado',       width: 62,
     render: r => EST_LABEL[r.estado] ?? r.estado },
   { key: 'material',         label: 'Material',     flex: 2 },
-  { key: 'codigo_unidad',    label: 'Código',       width: 74 },
+  { key: 'codigo_unidad',    label: 'Código',       flex: 1.5 },
   { key: 'responsable',      label: 'Responsable',  flex: 2 },
   { key: 'descripcion',      label: 'Descripción',  flex: 3 },
 ]

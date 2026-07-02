@@ -13,6 +13,7 @@ import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
 import { AppModal }         from '../../components/organisms/AppModal'
 import { DataTable }        from '../../components/organisms/DataTable'
 import { AppIcon }          from '../../components/atoms/AppIcon'
+import { groupUsersByRole }  from '../../utils/userGroups'
 const EMPTY_FORM = {
   id_sede: '', id_usuario: '', nombre: '', descripcion: '', estado: 'activo',
 }
@@ -21,6 +22,7 @@ export function AreasPage() {
   const [areas, setAreas] = useState([])
   const [sedes, setSedes] = useState([])
   const [usuarios, setUsuarios] = useState([])
+  const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
@@ -37,14 +39,16 @@ export function AreasPage() {
     setLoading(true)
     setError(null)
     try {
-      const [areasRes, sedesRes, usuariosRes] = await Promise.all([
+      const [areasRes, sedesRes, usuariosRes, rolesRes] = await Promise.all([
         api.get('/area'),
         api.get('/sede'),
         api.get('/usuario'),
+        api.get('/rol'),
       ])
       setAreas(areasRes.data)
       setSedes(sedesRes.data)
       setUsuarios(usuariosRes.data)
+      setRoles(rolesRes.data)
     } catch {
       setError('No se pudo cargar la información. Verifica tu conexión.')
     } finally {
@@ -254,7 +258,7 @@ export function AreasPage() {
                   size="sm"
                   value={form.id_usuario}
                   placeholder="Seleccionar usuario"
-                  options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                  options={groupUsersByRole(usuarios, roles)}
                   onChange={v => set('id_usuario', v)}
                 />
               </FormField>

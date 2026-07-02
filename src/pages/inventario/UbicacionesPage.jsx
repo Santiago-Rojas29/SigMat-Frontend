@@ -16,6 +16,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { groupUsersByRole } from '../../utils/userGroups'
 const PALETA = [
   { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
   { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', paths: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
@@ -104,7 +105,7 @@ export function UbicacionesPage() {
   }, [roles, user])
 
   const ubicacionesVisibles = useMemo(() => {
-    if (isAdmin) return ubicacionesRicas
+    if (isAdmin || isBodega) return ubicacionesRicas
     const misSolIds = new Set(solicitudes.filter(s => s.id_solicitante === user?.id).map(s => s.id_solicitud))
     const misLoteIds = new Set(solLotes.filter(sl => misSolIds.has(sl.id_solicitud)).map(sl => sl.id_lote))
     const misUnidadIds = new Set(solUnidades.filter(su => misSolIds.has(su.id_solicitud)).map(su => su.id_unidad))
@@ -450,7 +451,7 @@ export function UbicacionesPage() {
                 size="sm"
                 value={ubForm.id_encargado}
                 placeholder="— Sin encargado —"
-                options={usuarios.map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}` }))}
+                options={groupUsersByRole(usuarios, roles)}
                 onChange={v => setU('id_encargado', v)}
               />
             </FormField>

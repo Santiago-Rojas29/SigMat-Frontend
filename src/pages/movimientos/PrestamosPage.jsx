@@ -392,7 +392,7 @@ export function PrestamosPage() {
           {r.estado === 'activo' && !r._tieneEnt && (
             <button title="Registrar entrega" onClick={() => openEntrega(r)} style={btnSt('#2d8000')}><BoxIc /></button>
           )}
-          {r.estado === 'activo' && r._tieneEnt && !r._tieneDev && (
+          {r.estado === 'activo' && r._tieneEnt && !r._tieneDev && (isAdmin || !isBodega || r._ent?.id_encargado === user?.id) && (
             <button title="Registrar devolución" onClick={() => openDevolucion(r)} style={btnSt('#7c3aed')}><ReturnIc /></button>
           )}
         </div>

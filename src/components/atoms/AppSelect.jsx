@@ -101,6 +101,7 @@ export function AppSelect({ error, size = 'md', className = '', style, children,
               type="button"
               disabled={opt.disabled}
               onClick={() => handleSelect(opt)}
+              title={typeof opt.label === 'string' ? opt.label : undefined}
               style={{
                 width: '100%',
                 textAlign: 'left',
@@ -128,7 +129,7 @@ export function AppSelect({ error, size = 'md', className = '', style, children,
 
   return (
     <div
-      style={{ position: 'relative', width: '100%', ...style }}
+      style={{ position: 'relative', width: '100%', overflow: 'hidden', ...style }}
       className={className}
       onKeyDown={e => e.key === 'Escape' && setOpen(false)}
     >
@@ -140,7 +141,7 @@ export function AppSelect({ error, size = 'md', className = '', style, children,
         style={triggerStyle}
         {...props}
       >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
           {selected?.label ?? ''}
         </span>
         <svg
