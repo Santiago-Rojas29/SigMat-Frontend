@@ -12,4 +12,30 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err.response?.status
+    if (status === 401) {
+      const url = err.config?.url ?? ''
+      const esValidacionLocal = url.includes('/auth/cambiar-contrasena') || url.includes('/auth/resetear-contrasena')
+      if (!esValidacionLocal) {
+        localStorage.removeItem('sigmat_token')
+        localStorage.removeItem('sigmat_user')
+        window.location.replace('/login')
+      }
+    }
+    if (status === 429) {
+      localStorage.removeItem('sigmat_token')
+      localStorage.removeItem('sigmat_user')
+      const msg =
+        err.response?.data?.mensaje ??
+        'Has superado el límite de solicitudes. Espera un momento e intenta de nuevo.'
+      sessionStorage.setItem('sigmat_rate_error', msg)
+      window.location.replace('/login')
+    }
+    return Promise.reject(err)
+  },
+)
+
 export default api

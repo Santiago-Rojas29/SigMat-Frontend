@@ -1,0 +1,39 @@
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+.smt-nav {
+  scrollbar-width: thin;
+  scrollbar-color: #d1fae5 transparent;
+}
+.smt-nav::-webkit-scrollbar       { width: 4px; }
+.smt-nav::-webkit-scrollbar-track { background: transparent; }
+.smt-nav::-webkit-scrollbar-thumb { background: #d1fae5; border-radius: 4px; }
+
+.smt-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  margin: 1px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: #6b7280;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.smt-link:hover { background: #f0f8e8; color: #2d8000; }
+.smt-link.active {
+  background: #e4f5cc;
+  color: #2d8000;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 #39A900;
+}
+.smt-link.icon-only {
+  justify-content: center;
+  padding: 10px 0;
+  margin: 1px 8px;
+}
+.smt-link.icon-only.active { box-shadow: inset 3px 0 0 #39A900; }

@@ -6,7 +6,8 @@ const api = axios.create({
 
 function parseJwtPayload(token) {
   const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-  return JSON.parse(atob(base64))
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
 }
 
 export async function loginRequest(payload) {
@@ -14,6 +15,16 @@ export async function loginRequest(payload) {
   const decoded = parseJwtPayload(data.access_token)
   return {
     access_token: data.access_token,
-    user: { id: decoded.sub, correo: decoded.correo, id_rol: decoded.id_rol },
+    user: { id: decoded.sub, correo: decoded.correo, id_rol: decoded.id_rol, rolNombre: decoded.nombre_rol, id_sede: decoded.id_sede ?? null, nombres: decoded.nombres, apellidos: decoded.apellidos, disponible: decoded.disponible ?? true },
   }
+}
+
+export async function solicitarReset(correo) {
+  const { data } = await api.post('/auth/solicitar-reset', { correo })
+  return data
+}
+
+export async function resetearContrasena(correo, codigo, nueva_contrasena) {
+  const { data } = await api.post('/auth/resetear-contrasena', { correo, codigo, nueva_contrasena })
+  return data
 }

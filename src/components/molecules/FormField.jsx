@@ -1,12 +1,9 @@
 export function FormField({ label, htmlFor, children, required }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label
-        htmlFor={htmlFor}
-        style={{ fontSize: 13, fontWeight: 500, color: '#374151', letterSpacing: '0.1px' }}
-      >
+    <div className="d-flex flex-column gap-1 w-100">
+      <label htmlFor={htmlFor} className="form-label mb-0" style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>
         {label}
-        {required && <span style={{ color: '#39A900', marginLeft: 3 }}>*</span>}
+        {required && <span className="ms-1" style={{ color: 'var(--sena-green)' }}>*</span>}
       </label>
       {children}
     </div>

@@ -1,22 +1,54 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
-import { PermissionsProvider } from './context/PermissionsContext'
+import { PermissionsProvider, usePermissions } from './context/PermissionsContext'
+import { SocketProvider } from './context/SocketContext'
 import { PrivateRoute } from './routes/PrivateRoute'
 import { PermissionRoute } from './routes/PermissionRoute'
+import { RootRoute }       from './routes/RootRoute'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
-import { UsuariosPage } from './pages/admin/UsuariosPage'
+import { UsuariosPage }    from './pages/admin/UsuariosPage'
+import { CentrosPage }      from './pages/estructura/CentrosPage'
+import { SedesPage }        from './pages/estructura/SedesPage'
+import { AreasPage }        from './pages/estructura/AreasPage'
+import { ProgramasPage }    from './pages/estructura/ProgramasPage'
+import { FichasPage }       from './pages/estructura/FichasPage'
+import { RolesPage }       from './pages/admin/RolesPage'
+import { UbicacionesPage }  from './pages/inventario/UbicacionesPage'
+import { MaterialesPage }   from './pages/inventario/MaterialesPage'
+import { LotesPage }        from './pages/inventario/LotesPage'
+import { UnidadesPage }     from './pages/inventario/UnidadesPage'
+import { SolicitudesPage }  from './pages/movimientos/SolicitudesPage'
+import { PrestamosPage }   from './pages/movimientos/PrestamosPage'
+import { CatalogoPage }    from './pages/movimientos/CatalogoPage'
+import { IncidenciasPage } from './pages/control/IncidenciasPage'
+import { TrasladosPage }  from './pages/control/TrasladosPage'
+import { KardexPage }     from './pages/control/KardexPage'
+import { ReportesPage }  from './pages/reportes/ReportesPage'
+import { DashboardRoot }       from './pages/dashboard/DashboardRoot'
+import { RootCentrosPage }    from './pages/root/RootCentrosPage'
+import { RootSedesPage }      from './pages/root/RootSedesPage'
+import { RootAdminsPage }     from './pages/root/RootAdminsPage'
+
+function FallbackRedirect() {
+  const { rolNombre } = usePermissions()
+  if (rolNombre === 'Root') return <Navigate to="/root" replace />
+  return <Navigate to="/dashboard" replace />
+}
 
 function App() {
   return (
     <AuthProvider>
+      <SocketProvider>
       <PermissionsProvider>
         <BrowserRouter>
           <Routes>
             {/* Public */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* Protected — requires authentication */}
             <Route element={<PrivateRoute />}>
@@ -25,53 +57,63 @@ function App() {
                 {/* Dashboard — always visible */}
                 <Route path="/dashboard" element={<DashboardPage />} />
 
-                {/* Estructura — always visible */}
-                <Route path="/estructura/centros"  element={<PlaceholderPage title="Centros"   module="estructura" />} />
-                <Route path="/estructura/sedes"    element={<PlaceholderPage title="Sedes"     module="estructura" />} />
-                <Route path="/estructura/areas"    element={<PlaceholderPage title="Áreas"     module="estructura" />} />
-                <Route path="/estructura/programas"element={<PlaceholderPage title="Programas" module="estructura" />} />
-                <Route path="/estructura/fichas"   element={<PlaceholderPage title="Fichas"    module="estructura" />} />
+                {/* Root — gestión de tenants (solo rol Root) */}
+                <Route element={<RootRoute />}>
+                  <Route path="/root"         element={<DashboardRoot />} />
+                  <Route path="/root/centros" element={<RootCentrosPage />} />
+                  <Route path="/root/sedes"   element={<RootSedesPage />} />
+                  <Route path="/root/admins"  element={<RootAdminsPage />} />
+                </Route>
 
-                {/* Administración — requires 'usuarios' */}
-                <Route element={<PermissionRoute module="usuarios" />}>
+                {/* Reportes — always visible */}
+                <Route path="/reportes" element={<ReportesPage />} />
+
+                {/* Estructura — requires 'estructura' */}
+                <Route element={<PermissionRoute module="estructura" />}>
+                  <Route path="/estructura/centros"  element={<CentrosPage />} />
+                  <Route path="/estructura/sedes"    element={<SedesPage />} />
+                  <Route path="/estructura/areas"    element={<AreasPage />} />
+                  <Route path="/estructura/programas"element={<ProgramasPage />} />
+                  <Route path="/estructura/fichas"   element={<FichasPage />} />
+                </Route>
+
+                {/* Administración — requires 'administracion' */}
+                <Route element={<PermissionRoute module="administracion" />}>
                   <Route path="/admin/usuarios" element={<UsuariosPage />} />
-                  <Route path="/admin/roles"    element={<PlaceholderPage title="Roles"    module="usuarios" />} />
-                  <Route path="/admin/permisos" element={<PlaceholderPage title="Permisos" module="usuarios" />} />
+                  <Route path="/admin/roles" element={<RolesPage />} />
                 </Route>
 
-                {/* Inventario — materiales */}
-                <Route element={<PermissionRoute module="materiales" />}>
-                  <Route path="/inventario/materiales" element={<PlaceholderPage title="Materiales" module="materiales" />} />
-                  <Route path="/inventario/lotes"      element={<PlaceholderPage title="Lotes"      module="materiales" />} />
-                  <Route path="/inventario/unidades"   element={<PlaceholderPage title="Unidades"   module="materiales" />} />
-                </Route>
-
-                {/* Inventario — ubicaciones */}
-                <Route element={<PermissionRoute module="ubicaciones" />}>
-                  <Route path="/inventario/ubicaciones" element={<PlaceholderPage title="Ubicaciones" module="ubicaciones" />} />
-                </Route>
-
-                {/* Movimientos: Solicitudes (incluye validación) + Préstamos (incluye entregas/devoluciones) */}
-                <Route element={<PermissionRoute module="prestamos" />}>
-                  <Route path="/movimientos/solicitudes" element={<PlaceholderPage title="Solicitudes" module="prestamos" />} />
-                  <Route path="/movimientos/prestamos"   element={<PlaceholderPage title="Préstamos"   module="prestamos" />} />
-                </Route>
-
-                {/* Control y Seguimiento — requires 'inventario' */}
+                {/* Inventario */}
                 <Route element={<PermissionRoute module="inventario" />}>
-                  <Route path="/control/traslados"   element={<PlaceholderPage title="Traslados"   module="inventario" />} />
-                  <Route path="/control/incidencias" element={<PlaceholderPage title="Incidencias" module="inventario" />} />
-                  <Route path="/control/kardex"      element={<PlaceholderPage title="Kardex"      module="inventario" />} />
+                  <Route path="/inventario/materiales" element={<MaterialesPage />} />
+                  <Route path="/inventario/lotes"      element={<LotesPage />} />
+                  <Route path="/inventario/unidades"   element={<UnidadesPage />} />
+                  <Route path="/inventario/ubicaciones" element={<UbicacionesPage />} />
+                </Route>
+
+                {/* Movimientos */}
+                <Route element={<PermissionRoute module="movimientos" />}>
+                  <Route path="/movimientos/catalogo"    element={<CatalogoPage />} />
+                  <Route path="/movimientos/solicitudes" element={<SolicitudesPage />} />
+                  <Route path="/movimientos/prestamos"   element={<PrestamosPage />} />
+                </Route>
+
+                {/* Control y Seguimiento */}
+                <Route element={<PermissionRoute module="control" />}>
+                  <Route path="/control/traslados"   element={<TrasladosPage />} />
+                  <Route path="/control/incidencias" element={<IncidenciasPage />} />
+                  <Route path="/control/kardex"      element={<KardexPage />} />
                 </Route>
 
               </Route>
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<FallbackRedirect />} />
           </Routes>
         </BrowserRouter>
       </PermissionsProvider>
+      </SocketProvider>
     </AuthProvider>
   )
 }

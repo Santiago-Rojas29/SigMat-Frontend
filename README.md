@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+# SigMat — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interfaz web de SIGMAT (Sistema de Gestión de Materiales), construida con React 19 + TypeScript + Vite.
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 18+
+- El backend corriendo (ver `SigMat-Backend/README.md`) — este proyecto no tiene contenedor propio ni base de datos, solo consume la API.
 
-## React Compiler
+## 1. Variables de entorno
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Crea un archivo `.env` en la raíz de `SigMat-Frontend/` con estas claves:
 
-## Expanding the ESLint configuration
+```env
+# URL base de la API del backend
+VITE_API_URL=http://localhost:3000/api
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# URL del webhook de n8n que alimenta el chat de ayuda (ChatWidget)
+VITE_N8N_CHAT_URL=https://tu-instancia-n8n.com/webhook/...
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 2. Instalar dependencias y correr
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm install
+npm run dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Por defecto queda disponible en `http://localhost:5173`. Ese puerto (junto con `4200`/`4201` para la versión Angular) ya está permitido en el CORS del backend por defecto — si usas otro puerto, agrégalo a `FRONTEND_URL` en el `.env` del backend.
+
+## Qué necesitas saber para entrar al sistema
+
+No hay ningún seed ni registro propio en el frontend: el primer usuario para iniciar sesión es el **Root**, que el backend crea automáticamente la primera vez que arranca (`root@sigmat.com` / `Sigmat2024*` por defecto, ver README del backend). Desde ahí, con el Root logueado, se crean los centros, sedes y administradores de cada sede.
+
+## Lo más importante
+
+- **Multitenant por sede**: lo que ve cada usuario (menús, datos, permisos) depende de su rol y de su `id_sede`, que viaja en el JWT. El rol Root es el único que ve todas las sedes a la vez (dashboard y gestión de centros/sedes/admins).
+- **Permisos por módulo**: la navegación y las acciones disponibles (crear/editar/eliminar/aprobar/etc.) se ajustan según los permisos que el rol del usuario tenga en cada módulo (Estructura, Administración, Inventario, Movimientos, Control).
+- **Notificaciones en tiempo real**: conexión WebSocket (`socket.io-client`) para la campana de notificaciones — préstamos vencidos, solicitudes pendientes, stock crítico, etc.
+- **Reportes en PDF**: los reportes se generan en el navegador con `@react-pdf/renderer`, con plantillas con el diseño institucional SENA.
+- **Chat de ayuda**: `ChatWidget` habla con un flujo de n8n vía `VITE_N8N_CHAT_URL`.
+
+## Scripts
+
+```bash
+npm run dev       # servidor de desarrollo (Vite + HMR)
+npm run build     # type-check (tsc -b) + build de producción
+npm run preview   # sirve el build de producción localmente
+npm run lint      # ESLint
 ```
