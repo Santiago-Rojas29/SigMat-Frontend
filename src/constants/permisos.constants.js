@@ -26,6 +26,7 @@ export const SUBMODULOS = {
     { value: 'ubicaciones', label: 'Ubicaciones' },
   ],
   movimientos: [
+    { value: 'catalogo',    label: 'Catálogo' },
     { value: 'solicitudes', label: 'Solicitudes' },
     { value: 'prestamos',   label: 'Préstamos' },
   ],

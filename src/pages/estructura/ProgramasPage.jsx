@@ -13,6 +13,7 @@ import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
 import { AppModal }         from '../../components/organisms/AppModal'
 import { DataTable }        from '../../components/organisms/DataTable'
 import { AppIcon }          from '../../components/atoms/AppIcon'
+import { usePermissions }   from '../../context/PermissionsContext'
 const NIVEL_OPTS = [
   { value: 'tecnico',       label: 'Técnico' },
   { value: 'tecnologo',     label: 'Tecnólogo' },
@@ -24,6 +25,10 @@ const EMPTY_FORM = {
 }
 
 export function ProgramasPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('estructura', 'programas', 'crear')
+  const canEditar   = hasAction('estructura', 'programas', 'editar')
+  const canEliminar = hasAction('estructura', 'programas', 'eliminar')
   const [programas, setProgramas] = useState([])
   const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -171,12 +176,16 @@ export function ProgramasPage() {
       width: 90,
       render: (p) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(p)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(p)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(p)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(p)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -200,23 +209,25 @@ export function ProgramasPage() {
         searchable
         searchPlaceholder="Buscar por nombre, código, área…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin programas"
         emptyDescription="Crea el primer programa de formación."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo programa
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo programa
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo programa
+              </AppButton>
+            )}
           </>
         }
       />

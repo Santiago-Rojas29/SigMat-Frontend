@@ -38,8 +38,7 @@ export function LoginForm() {
     try {
       const result = await loginRequest({ correo, contrasena })
       login(result.access_token, result.user)
-      const dest = result.user.id_sede === null ? '/root/centros' : '/dashboard'
-      navigate(dest, { state: { loginSuccess: true } })
+      navigate('/dashboard', { state: { loginSuccess: true } })
     } catch (err) {
       const status = err?.response?.status
       if (status === 429) {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 
 const WA_NUMBER = '573114620119'
-const WEBHOOK_URL = import.meta.env.VITE_N8N_CHAT_URL ?? 'https://n8n.srv1431570.hstgr.cloud/webhook/whatsapp'
+const WEBHOOK_URL = import.meta.env.VITE_N8N_CHAT_URL ?? 'https://n8n.srv1431570.hstgr.cloud/webhook/chat-web'
 
 function WhatsAppIcon({ size = 20 }) {
   return (

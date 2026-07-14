@@ -12,6 +12,7 @@ import { ConfirmDialog }  from '../../components/molecules/ConfirmDialog'
 import { AppModal }       from '../../components/organisms/AppModal'
 import { DataTable }      from '../../components/organisms/DataTable'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { usePermissions } from '../../context/PermissionsContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,10 @@ const EMPTY_FORM = {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function CentrosPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('estructura', 'centros', 'crear')
+  const canEditar   = hasAction('estructura', 'centros', 'editar')
+  const canEliminar = hasAction('estructura', 'centros', 'eliminar')
   const [centros, setCentros] = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
@@ -156,12 +161,16 @@ export function CentrosPage() {
       width: 90,
       render: (c) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(c)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(c)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(c)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(c)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -187,23 +196,25 @@ export function CentrosPage() {
         searchable
         searchPlaceholder="Buscar por nombre, ciudad, dirección…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin centros"
         emptyDescription="Crea el primer centro de formación."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo centro
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo centro
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo centro
+              </AppButton>
+            )}
           </>
         }
       />

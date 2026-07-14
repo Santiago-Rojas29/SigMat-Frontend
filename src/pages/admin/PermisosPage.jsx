@@ -14,6 +14,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 
 import { MODULOS, SUBMODULOS, MODULO_LABELS, SUBMODULO_LABELS } from '../../constants/permisos.constants'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { usePermissions } from '../../context/PermissionsContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,10 @@ const EMPTY_FORM = { nombre: '', descripcion: '', modulo: 'estructura', submodul
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function PermisosPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('administracion', 'permisos', 'crear')
+  const canEditar   = hasAction('administracion', 'permisos', 'editar')
+  const canEliminar = hasAction('administracion', 'permisos', 'eliminar')
   const [permisos,  setPermisos]  = useState([])
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
@@ -160,12 +165,16 @@ export function PermisosPage() {
       width: 90,
       render: (p) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(p)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(p)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(p)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(p)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -193,19 +202,21 @@ export function PermisosPage() {
         pageSize={10}
         emptyTitle="Sin permisos"
         emptyDescription="Crea el primer permiso del sistema."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo permiso
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo permiso
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo permiso
+              </AppButton>
+            )}
           </>
         }
       />

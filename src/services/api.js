@@ -17,9 +17,13 @@ api.interceptors.response.use(
   (err) => {
     const status = err.response?.status
     if (status === 401) {
-      localStorage.removeItem('sigmat_token')
-      localStorage.removeItem('sigmat_user')
-      window.location.replace('/login')
+      const url = err.config?.url ?? ''
+      const esValidacionLocal = url.includes('/auth/cambiar-contrasena') || url.includes('/auth/resetear-contrasena')
+      if (!esValidacionLocal) {
+        localStorage.removeItem('sigmat_token')
+        localStorage.removeItem('sigmat_user')
+        window.location.replace('/login')
+      }
     }
     if (status === 429) {
       localStorage.removeItem('sigmat_token')

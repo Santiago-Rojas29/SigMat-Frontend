@@ -17,7 +17,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
-import { groupUsersByRole } from '../../utils/userGroups'
+import { getResponsablesBodega } from '../../utils/userGroups'
 const CATEGORIAS_MAT = {
   'consumible':    { label: 'Consumible',    color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7' },
   'no consumible': { label: 'No Consumible', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe' },
@@ -87,8 +87,11 @@ function CatBadge({ categoria }) {
 
 export function LotesPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const canCrear    = hasAction('inventario', 'lotes', 'crear')
+  const canEditar   = hasAction('inventario', 'lotes', 'editar')
+  const canEliminar = hasAction('inventario', 'lotes', 'eliminar')
   const [searchParams] = useSearchParams()
   const navigate         = useNavigate()
   const materialFiltroId  = searchParams.get('material')
@@ -219,7 +222,8 @@ export function LotesPage() {
 
   const openCreate = () => {
     const primerMat = materialesValidos[0]
-    setForm({ ...EMPTY_FORM, id_material: primerMat?.id ?? '', id_responsable: usuarios[0]?.id ?? '', id_ubicacion: String(ubicaciones[0]?.id_ubicacion ?? '') })
+    const primerUb  = ubicaciones[0]
+    setForm({ ...EMPTY_FORM, id_material: primerMat?.id ?? '', id_responsable: primerUb?.id_encargado ?? '', id_ubicacion: String(primerUb?.id_ubicacion ?? '') })
     setModal({ mode: 'create' })
   }
 
@@ -433,8 +437,8 @@ export function LotesPage() {
               <AppIcon name="clipboard" size={15} />
             </IconButton>
           )}
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><AppIcon name="edit" size={15} /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><AppIcon name="trash" size={15} /></IconButton>}
+          {canEditar && <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(l)}><AppIcon name="edit" size={15} /></IconButton>}
+          {canEliminar && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(l)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -557,23 +561,25 @@ export function LotesPage() {
         searchable
         searchPlaceholder="Buscar por código, material, responsable…"
         pageSize={10}
-        selectable={isAdmin}
-        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin lotes"
         emptyDescription="Registra el primer lote de consumibles o perecederos."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo lote
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo lote
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo lote
+              </AppButton>
+            )}
           </>
         }
       />
@@ -668,7 +674,7 @@ export function LotesPage() {
                 size="sm"
                 value={form.id_responsable}
                 placeholder="— Seleccionar —"
-                options={groupUsersByRole(usuarios, roles)}
+                options={getResponsablesBodega(usuarios, roles)}
                 onChange={v => set('id_responsable', v)}
               />
             </FormField>
@@ -678,7 +684,10 @@ export function LotesPage() {
                 value={form.id_ubicacion}
                 placeholder="— Seleccionar —"
                 options={ubicaciones.map(u => ({ value: u.id_ubicacion, label: u.nombre }))}
-                onChange={v => set('id_ubicacion', v)}
+                onChange={v => {
+                  const ub = ubicaciones.find(u => String(u.id_ubicacion) === String(v))
+                  setForm(p => ({ ...p, id_ubicacion: v, id_responsable: ub?.id_encargado || p.id_responsable }))
+                }}
               />
             </FormField>
           </div>
@@ -808,7 +817,7 @@ export function LotesPage() {
         title="Eliminar lote"
         description={
           deleteTarget
-            ? <>¿Eliminar el lote <strong>{deleteTarget.codigo_lote}</strong>? Esta acción no se puede deshacer.</>
+            ? <>¿Eliminar el lote <strong>{deleteTarget.codigo_lote}</strong>? Esta acción no se puede deshacer y también eliminará su historial de movimientos en el Kardex.</>
             : null
         }
         confirmLabel="Sí, eliminar"

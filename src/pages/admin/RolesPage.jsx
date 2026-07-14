@@ -12,6 +12,7 @@ import { AppModal }       from '../../components/organisms/AppModal'
 import { DataTable }      from '../../components/organisms/DataTable'
 import { PermisosRolModal } from '../../components/organisms/PermisosRolModal'
 import { AppIcon }        from '../../components/atoms/AppIcon'
+import { usePermissions } from '../../context/PermissionsContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,10 @@ const EMPTY_FORM = { nombre: '', descripcion: '' }
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function RolesPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('administracion', 'roles', 'crear')
+  const canEditar   = hasAction('administracion', 'roles', 'editar')
+  const canEliminar = hasAction('administracion', 'roles', 'eliminar')
   const [roles,    setRoles]    = useState([])
   const [usuarios, setUsuarios] = useState([])
   const [permisos, setPermisos] = useState([])
@@ -161,12 +166,16 @@ export function RolesPage() {
           >
             <AppIcon name="shield" size={15} />
           </IconButton>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(r)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(r)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(r)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(r)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -194,19 +203,21 @@ export function RolesPage() {
         pageSize={10}
         emptyTitle="Sin roles"
         emptyDescription="Crea el primer rol del sistema."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo rol
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo rol
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo rol
+              </AppButton>
+            )}
           </>
         }
       />
@@ -283,6 +294,7 @@ export function RolesPage() {
         onClose={() => setPermisosTarget(null)}
         rol={permisosTarget}
         permisos={permisos}
+        onSaved={() => showToast('success', 'Permisos del rol actualizados correctamente.')}
       />
 
       {/* Confirmar eliminación */}

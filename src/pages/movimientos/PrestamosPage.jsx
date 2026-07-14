@@ -68,8 +68,9 @@ const DEV_INIT   = { fecha_devolucion: '', condicion: 'bueno', observaciones: ''
 
 export function PrestamosPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const canCrear = hasAction('movimientos', 'prestamos', 'crear')
 
   const [roles,              setRoles]              = useState([])
   const [prestamos,          setPrestamos]          = useState([])
@@ -439,7 +440,7 @@ export function PrestamosPage() {
         searchable
         searchPlaceholder="Buscar por solicitante, ficha, estado…"
         pageSize={10}
-        actions={<AppButton size="compact" onClick={openCrear}>+ Nuevo préstamo</AppButton>}
+        actions={canCrear && <AppButton size="compact" onClick={openCrear}>+ Nuevo préstamo</AppButton>}
         emptyTitle="Sin préstamos"
         emptyDescription="No hay préstamos en esta categoría."
       />

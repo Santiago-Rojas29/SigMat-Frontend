@@ -15,7 +15,7 @@ export async function loginRequest(payload) {
   const decoded = parseJwtPayload(data.access_token)
   return {
     access_token: data.access_token,
-    user: { id: decoded.sub, correo: decoded.correo, id_rol: decoded.id_rol, id_sede: decoded.id_sede ?? null, nombres: decoded.nombres, apellidos: decoded.apellidos },
+    user: { id: decoded.sub, correo: decoded.correo, id_rol: decoded.id_rol, rolNombre: decoded.nombre_rol, id_sede: decoded.id_sede ?? null, nombres: decoded.nombres, apellidos: decoded.apellidos, disponible: decoded.disponible ?? true },
   }
 }
 

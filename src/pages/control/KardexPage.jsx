@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { pdf } from '@react-pdf/renderer'
 import api from '../../services/api'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
@@ -12,6 +13,7 @@ import { PageHeader }  from '../../components/molecules/PageHeader'
 import { FormField }   from '../../components/molecules/FormField'
 import { DataTable }   from '../../components/organisms/DataTable'
 import { AppIcon }     from '../../components/atoms/AppIcon'
+import { ReporteKardexPdf } from '../reportes/pdf/ReporteKardexPdf'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -258,6 +260,42 @@ export function KardexPage() {
     },
   ]
 
+  // ── Export PDF ────────────────────────────────────────────────────────────────
+
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportPdf = async () => {
+    setExporting(true)
+    try {
+      const tipoLabel = TIPO_OPTIONS.find(o => o.value === filtroTipo)?.label ?? 'Todos los tipos'
+      const filtros = [
+        { label: 'Tipo',  value: filtroTipo  ? tipoLabel       : null },
+        { label: 'Desde', value: filtroDesde ? filtroDesde      : null },
+        { label: 'Hasta', value: filtroHasta ? filtroHasta      : null },
+      ].filter(f => f.value)
+
+      const data = datosFiltrados.map(k => ({
+        fecha_movimiento: fmt(k.fecha_movimiento),
+        tipo_movimiento:  k.tipo_movimiento,
+        material:         k.materialNombre ?? '—',
+        codigo:           k.itemCodigo     ?? '—',
+        tipo_item:        k.itemTipo       ?? '—',
+        cantidad:         k.cantidad,
+        saldo:            k.saldo,
+      }))
+
+      const blob = await pdf(<ReporteKardexPdf data={data} filtros={filtros} />).toBlob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `kardex_${new Date().toISOString().slice(0, 10)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -303,9 +341,14 @@ export function KardexPage() {
             × Limpiar filtros
           </AppButton>
         )}
-        <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading} style={{ marginLeft: 'auto' }}>
-          <AppIcon name="refresh" /> Actualizar
-        </AppButton>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
+            <AppIcon name="refresh" /> Actualizar
+          </AppButton>
+          <AppButton variant="ghost" size="compact" onClick={handleExportPdf} disabled={exporting || datosFiltrados.length === 0}>
+            <AppIcon name="printer" /> {exporting ? 'Generando…' : 'Exportar PDF'}
+          </AppButton>
+        </div>
       </div>
 
       <DataTable

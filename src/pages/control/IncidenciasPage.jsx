@@ -67,8 +67,11 @@ function Row({ label, value }) {
 
 export function IncidenciasPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const canCrear    = hasAction('control', 'incidencias', 'crear')
+  const canEditar   = hasAction('control', 'incidencias', 'editar')
+  const canEliminar = hasAction('control', 'incidencias', 'eliminar')
 
   const [roles,       setRoles]       = useState([])
   const [incidencias, setIncidencias] = useState([])
@@ -268,12 +271,12 @@ export function IncidenciasPage() {
           <button title="Ver detalle" onClick={() => openDetail(r)} style={btnStyle('#2563eb')}>
             <AppIcon name="eye" size={15} />
           </button>
-          {r.estado !== 'cerrada' && (
+          {canEditar && r.estado !== 'cerrada' && (
             <button title="Cambiar estado" onClick={() => openEstado(r)} style={btnStyle('#2d8000')}>
               <AppIcon name="edit" size={15} />
             </button>
           )}
-          {isAdmin && (
+          {canEliminar && (
             <button title="Eliminar" onClick={() => setConfirmDel({ open: true, id: r.id })} style={btnStyle('#dc2626')}>
               <AppIcon name="trash" size={15} />
             </button>
@@ -328,7 +331,7 @@ export function IncidenciasPage() {
         searchPlaceholder="Buscar por unidad, tipo, material…"
         pageSize={10}
         actions={
-          <AppButton size="compact" onClick={openCreate}>+ Nueva incidencia</AppButton>
+          canCrear && <AppButton size="compact" onClick={openCreate}>+ Nueva incidencia</AppButton>
         }
         emptyTitle="Sin incidencias"
         emptyDescription="No hay incidencias registradas."

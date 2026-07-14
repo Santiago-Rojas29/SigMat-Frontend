@@ -16,7 +16,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
-import { groupUsersByRole } from '../../utils/userGroups'
+import { getResponsablesBodega } from '../../utils/userGroups'
 const ESTADOS = {
   disponible:        { label: 'Disponible',       variant: 'success'  },
   prestado:          { label: 'Prestado',          variant: 'info'     },
@@ -44,8 +44,11 @@ const EMPTY_FORM = {
 
 export function UnidadesPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const canCrear    = hasAction('inventario', 'unidades', 'crear')
+  const canEditar   = hasAction('inventario', 'unidades', 'editar')
+  const canEliminar = hasAction('inventario', 'unidades', 'eliminar')
   const [searchParams] = useSearchParams()
   const navigate         = useNavigate()
   const materialFiltroId  = searchParams.get('material')
@@ -70,6 +73,8 @@ export function UnidadesPage() {
   const { showToast, toastPortal } = useToast()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting,     setDeleting]     = useState(false)
+
+  const [codigos, setCodigos] = useState([''])
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null)
@@ -161,12 +166,14 @@ export function UnidadesPage() {
   const materialesNoConsumibles = materiales.filter(m => m.categoria === 'no consumible')
 
   const openCreate = () => {
+    const primerUb = ubicaciones[0]
     setForm({
       ...EMPTY_FORM,
       id_material:   materialesNoConsumibles[0]?.id ?? '',
-      id_responsable:usuarios[0]?.id ?? '',
-      id_ubicacion:  String(ubicaciones[0]?.id_ubicacion ?? ''),
+      id_responsable:primerUb?.id_encargado ?? '',
+      id_ubicacion:  String(primerUb?.id_ubicacion ?? ''),
     })
+    setCodigos([''])
     setModal({ mode: 'create' })
   }
 
@@ -217,6 +224,39 @@ export function UnidadesPage() {
       const msg = e.response?.data?.message
       showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al eliminar.'))
     } finally { setDeleting(false) }
+  }
+
+  const handleSaveMasivo = async () => {
+    const esBodega = bodegaUbicacionIds.has(String(form.id_ubicacion))
+    if (esBodega && !form.id_ficha) {
+      showToast('error', 'Esta ubicación es una bodega — debes seleccionar la ficha.')
+      return
+    }
+    if (codigos.some(c => !c.trim())) {
+      showToast('error', 'Hay códigos vacíos. Completa o elimina las filas vacías.')
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = codigos.map(codigo => ({
+        id_material:   form.id_material,
+        id_responsable:form.id_responsable,
+        id_ubicacion:  String(form.id_ubicacion),
+        codigo_unidad: codigo.trim(),
+        estado:        form.estado,
+        id_ficha:      esBodega ? (form.id_ficha || null) : null,
+      }))
+      const { data } = await api.post('/unidad/masivo', { unidades: payload })
+      if (data.errores?.length > 0) {
+        showToast('warning', `${data.creadas} creadas, ${data.errores.length} con errores.`)
+      } else {
+        showToast('success', `${data.creadas} unidades creadas correctamente.`)
+      }
+      closeModal(); loadData()
+    } catch (e) {
+      const msg = e.response?.data?.message
+      showToast('error', Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Error al crear las unidades.'))
+    } finally { setSaving(false) }
   }
 
   const handleBulkDelete = async (ids) => {
@@ -285,8 +325,8 @@ export function UnidadesPage() {
       width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><AppIcon name="edit" size={15} /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><AppIcon name="trash" size={15} /></IconButton>}
+          {canEditar && <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(u)}><AppIcon name="edit" size={15} /></IconButton>}
+          {canEliminar && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -382,23 +422,25 @@ export function UnidadesPage() {
         searchable
         searchPlaceholder="Buscar por código, material, responsable…"
         pageSize={10}
-        selectable={isAdmin}
-        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin unidades"
         emptyDescription="Registra la primera unidad física de un activo."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nueva unidad
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nueva unidad
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nueva unidad
+              </AppButton>
+            )}
           </>
         }
       />
@@ -411,14 +453,21 @@ export function UnidadesPage() {
         footer={
           <>
             <AppButton variant="ghost" size="compact" onClick={closeModal} disabled={saving}>Cancelar</AppButton>
-            <AppButton size="compact" onClick={handleSave} loading={saving}>
-              {modal?.mode === 'create' ? 'Crear unidad' : 'Guardar cambios'}
-            </AppButton>
+            {modal?.mode === 'create' ? (
+              <AppButton size="compact" onClick={handleSaveMasivo} loading={saving}>
+                Crear {codigos.length} unidade{codigos.length !== 1 ? 's' : ''}
+              </AppButton>
+            ) : (
+              <AppButton size="compact" onClick={handleSave} loading={saving}>
+                Guardar cambios
+              </AppButton>
+            )}
           </>
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+          {/* Campos comunes */}
           <FormField label="Material (activo)" required>
             <SearchableSelect
               size="sm"
@@ -439,10 +488,13 @@ export function UnidadesPage() {
             </div>
           )}
 
-          <FormField label="Código / Placa / Serial" required>
-            <AppInput size="sm" value={form.codigo_unidad} placeholder="Ej. SENA-PC-001, SN-4892736"
-              onChange={e => set('codigo_unidad', e.target.value)} />
-          </FormField>
+          {/* Código — solo al editar */}
+          {modal?.mode === 'edit' && (
+            <FormField label="Código / Placa / Serial" required>
+              <AppInput size="sm" value={form.codigo_unidad} placeholder="Ej. SENA-PC-001, SN-4892736"
+                onChange={e => set('codigo_unidad', e.target.value)} />
+            </FormField>
+          )}
 
           <div style={{ display: 'flex', gap: 14 }}>
             <FormField label="Responsable" required>
@@ -450,7 +502,7 @@ export function UnidadesPage() {
                 size="sm"
                 value={form.id_responsable}
                 placeholder="— Seleccionar —"
-                options={groupUsersByRole(usuarios, roles)}
+                options={getResponsablesBodega(usuarios, roles)}
                 onChange={v => set('id_responsable', v)}
               />
             </FormField>
@@ -460,11 +512,15 @@ export function UnidadesPage() {
                 value={form.id_ubicacion}
                 placeholder="— Seleccionar —"
                 options={ubicaciones.map(u => ({ value: u.id_ubicacion, label: u.nombre }))}
-                onChange={v => setForm(p => ({
-                  ...p,
-                  id_ubicacion: v,
-                  id_ficha: bodegaUbicacionIds.has(v) ? p.id_ficha : '',
-                }))}
+                onChange={v => {
+                  const ub = ubicaciones.find(u => String(u.id_ubicacion) === String(v))
+                  setForm(p => ({
+                    ...p,
+                    id_ubicacion: v,
+                    id_responsable: ub?.id_encargado || p.id_responsable,
+                    id_ficha: bodegaUbicacionIds.has(v) ? p.id_ficha : '',
+                  }))
+                }}
               />
             </FormField>
           </div>
@@ -489,6 +545,112 @@ export function UnidadesPage() {
             </FormField>
           )}
 
+          {/* Códigos — solo al crear */}
+          {modal?.mode === 'create' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 0' }}>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
+                  Códigos a registrar
+                </span>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              </div>
+
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', padding: '7px 12px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af' }}>#</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Código / Placa / Serial</span>
+                  <span />
+                </div>
+
+                {/* Filas */}
+                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  {codigos.map((codigo, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'grid', gridTemplateColumns: '36px 1fr 36px',
+                        alignItems: 'center',
+                        borderBottom: i < codigos.length - 1 ? '1px solid #f3f4f6' : 'none',
+                        background: i % 2 === 0 ? '#fff' : '#fafafa',
+                        padding: '4px 8px 4px 12px',
+                      }}
+                    >
+                      <span style={{ fontSize: 12, color: '#9ca3af', userSelect: 'none' }}>{i + 1}</span>
+                      <input
+                        value={codigo}
+                        placeholder="Ej: SN-4892736"
+                        autoFocus={i === codigos.length - 1 && i > 0}
+                        onChange={e => {
+                          const next = [...codigos]
+                          next[i] = e.target.value
+                          setCodigos(next)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            setCodigos(prev => [...prev, ''])
+                          }
+                        }}
+                        style={{
+                          padding: '6px 9px',
+                          border: `1.5px solid ${!codigo.trim() && codigos.length > 1 ? '#fca5a5' : '#e5e7eb'}`,
+                          borderRadius: 6, fontSize: 13,
+                          fontFamily: "'Courier New', Courier, monospace",
+                          background: !codigo.trim() && codigos.length > 1 ? '#fef2f2' : '#fff',
+                          color: '#111827', outline: 'none',
+                          width: '100%', boxSizing: 'border-box',
+                        }}
+                        onFocus={e => { e.target.style.borderColor = '#39A900' }}
+                        onBlur={e => { e.target.style.borderColor = !e.target.value.trim() && codigos.length > 1 ? '#fca5a5' : '#e5e7eb' }}
+                      />
+                      <button
+                        onClick={() => codigos.length > 1 && setCodigos(prev => prev.filter((_, j) => j !== i))}
+                        disabled={codigos.length === 1}
+                        title="Eliminar fila"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          width: 28, height: 28, borderRadius: 6,
+                          border: 'none', background: 'none', cursor: codigos.length === 1 ? 'not-allowed' : 'pointer',
+                          color: codigos.length === 1 ? '#d1d5db' : '#9ca3af',
+                          transition: 'background 0.12s, color 0.12s',
+                        }}
+                        onMouseEnter={e => { if (codigos.length > 1) { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444' } }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = codigos.length === 1 ? '#d1d5db' : '#9ca3af' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Botón agregar */}
+                <button
+                  onClick={() => setCodigos(prev => [...prev, ''])}
+                  style={{
+                    width: '100%', padding: '9px 12px',
+                    border: 'none', borderTop: '1px solid #e5e7eb',
+                    background: '#fafafa', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 600, color: '#39A900',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  Agregar código
+                  <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(o presiona Enter en cualquier campo)</span>
+                </button>
+              </div>
+            </>
+          )}
+
         </div>
       </AppModal>
 
@@ -497,7 +659,7 @@ export function UnidadesPage() {
         title="Eliminar unidad"
         description={
           deleteTarget
-            ? <>¿Eliminar la unidad <strong>{deleteTarget.codigo_unidad}</strong>? Esta acción no se puede deshacer.</>
+            ? <>¿Eliminar la unidad <strong>{deleteTarget.codigo_unidad}</strong>? Esta acción no se puede deshacer y también eliminará su historial de movimientos en el Kardex.</>
             : null
         }
         confirmLabel="Sí, eliminar"

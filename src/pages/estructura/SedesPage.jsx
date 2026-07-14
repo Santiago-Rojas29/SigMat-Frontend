@@ -13,11 +13,16 @@ import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
 import { AppModal }         from '../../components/organisms/AppModal'
 import { DataTable }        from '../../components/organisms/DataTable'
 import { AppIcon }          from '../../components/atoms/AppIcon'
+import { usePermissions }   from '../../context/PermissionsContext'
 const EMPTY_FORM = {
   id_centro: '', nombre: '', direccion: '', telefono: '', estado: 'activo',
 }
 
 export function SedesPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('estructura', 'sedes', 'crear')
+  const canEditar   = hasAction('estructura', 'sedes', 'editar')
+  const canEliminar = hasAction('estructura', 'sedes', 'eliminar')
   const [sedes, setSedes] = useState([])
   const [centros, setCentros] = useState([])
   const [loading, setLoading] = useState(true)
@@ -157,12 +162,16 @@ export function SedesPage() {
       width: 90,
       render: (s) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(s)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(s)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(s)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(s)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -186,23 +195,25 @@ export function SedesPage() {
         searchable
         searchPlaceholder="Buscar por nombre, centro, dirección…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin sedes"
         emptyDescription="Crea la primera sede."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nueva sede
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nueva sede
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nueva sede
+              </AppButton>
+            )}
           </>
         }
       />

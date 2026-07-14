@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { PageHeader }       from '../../components/molecules/PageHeader'
 import { DataTable }        from '../../components/organisms/DataTable'
 import { AppModal }         from '../../components/organisms/AppModal'
@@ -113,8 +114,13 @@ function btnStyle(color) {
 
 export function SolicitudesPage() {
   const { user }        = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin         = hasPermission('administracion')
+  const canCrear        = hasAction('movimientos', 'solicitudes', 'crear')
+  const navigate        = useNavigate()
+  const location        = useLocation()
+  const processedCatalogState  = useRef(false)
+  const catalogAutoSelectRef   = useRef(null)
 
   // ── Data ──────────────────────────────────────────────────────────────────
 
@@ -126,6 +132,7 @@ export function SolicitudesPage() {
   const [roles,              setRoles]              = useState([])
   const [fichaUsuarios,      setFichaUsuarios]      = useState([])
   const [lotes,              setLotes]              = useState([])
+  const [loteFichas,         setLoteFichas]         = useState([])
   const [unidades,           setUnidades]           = useState([])
   const [materiales,         setMateriales]         = useState([])
   const [fichas,             setFichas]             = useState([])
@@ -156,12 +163,14 @@ export function SolicitudesPage() {
   const [entregarForm,  setEntregarForm]  = useState({ fecha_limite: '', observaciones: '' })
   const [actioning,     setActioning]     = useState(false)
 
+  const [selectedUbicacionId, setSelectedUbicacionId] = useState('')
+
   // ── Load ──────────────────────────────────────────────────────────────────
 
   const load = useCallback(async (silent = false) => {
     try {
       setLoading(true)
-      const [s, sl, su, sa, u, r, fu, l, un, m, fi, ub] = await Promise.all([
+      const [s, sl, su, sa, u, r, fu, l, lf, un, m, fi, ub] = await Promise.all([
         api.get('/solicitud'),
         api.get('/solicitud-lote'),
         api.get('/solicitud-unidad'),
@@ -170,6 +179,7 @@ export function SolicitudesPage() {
         api.get('/rol'),
         api.get('/ficha-usuario'),
         api.get('/lote'),
+        api.get('/lote-ficha'),
         api.get('/unidad'),
         api.get('/material'),
         api.get('/ficha'),
@@ -183,6 +193,7 @@ export function SolicitudesPage() {
       setRoles(r.data)
       setFichaUsuarios(fu.data)
       setLotes(l.data)
+      setLoteFichas(lf.data)
       setUnidades(un.data)
       setMateriales(m.data)
       setFichas(fi.data)
@@ -295,13 +306,131 @@ export function SolicitudesPage() {
     return solicitudesVisibles.filter(s => s.estado === filterKey)
   }, [solicitudesVisibles, filterKey])
 
-  const unidadesDisponibles = useMemo(() =>
-    unidades.filter(u => u.estado === 'disponible').map(u => ({ ...u, _material: materiales.find(m => m.id === u.id_material) }))
-  , [unidades, materiales])
+  const esAprendiz = myRoleName === 'Aprendiz'
 
-  const lotesConStock = useMemo(() =>
-    lotes.filter(l => l.cantidad_disponible > 0).map(l => ({ ...l, _material: materiales.find(m => m.id === l.id_material) }))
-  , [lotes, materiales])
+  const misFichaIds = useMemo(() => {
+    if (!user) return new Set()
+    return new Set(fichaUsuarios.filter(fu => fu.id_usuario === user.id).map(fu => fu.id_ficha))
+  }, [fichaUsuarios, user])
+
+  // Un aprendiz solo ve unidades libres (sin ficha) o asignadas a su propia ficha.
+  // Instructores, admin y bodega ven todo el disponible, sin restricción.
+  const unidadesDisponibles = useMemo(() => {
+    let base = unidades.filter(u => u.estado === 'disponible')
+    if (esAprendiz) base = base.filter(u => !u.id_ficha || misFichaIds.has(u.id_ficha))
+    return base.map(u => ({ ...u, _material: materiales.find(m => m.id === u.id_material) }))
+  }, [unidades, materiales, esAprendiz, misFichaIds])
+
+  // Un aprendiz solo ve lotes libres (sin ninguna asignación a ficha) o la cuota
+  // asignada a su propia ficha — nunca la cantidad_disponible general del lote,
+  // que ya descuenta lo repartido a fichas (incluida la ajena).
+  const lotesConStock = useMemo(() => {
+    let base = lotes.filter(l => l.cantidad_disponible > 0)
+    if (esAprendiz) {
+      base = base.reduce((acc, l) => {
+        const asignaciones = loteFichas.filter(lf => lf.id_lote === l.id_lote)
+        if (asignaciones.length === 0) { acc.push(l); return acc } // libre
+        const miCuota = asignaciones.find(lf => misFichaIds.has(lf.id_ficha))
+        if (miCuota) acc.push({ ...l, cantidad_disponible: miCuota.cantidad })
+        return acc // asignado a otra ficha → no visible
+      }, [])
+    }
+    return base.map(l => ({ ...l, _material: materiales.find(m => m.id === l.id_material) }))
+  }, [lotes, loteFichas, materiales, esAprendiz, misFichaIds])
+
+  const ubicacionesConStock = useMemo(() => {
+    const ids = new Set([
+      ...unidadesDisponibles.map(u => u.id_ubicacion),
+      ...lotesConStock.map(l => l.id_ubicacion),
+    ])
+    return ubicaciones
+      .filter(ub => ids.has(ub.id_ubicacion))
+      .map(ub => {
+        const enc = usuarios.find(u => u.id === ub.id_encargado) ?? null
+        const encRol = enc ? (roles.find(r => r.id === enc.id_rol)?.nombre ?? null) : null
+        return { ...ub, _encargado: enc, _encargadoRol: encRol }
+      })
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [ubicaciones, unidadesDisponibles, lotesConStock, usuarios, roles])
+
+  const unidadesEnUbicacion = useMemo(() =>
+    selectedUbicacionId
+      ? unidadesDisponibles.filter(u => String(u.id_ubicacion) === String(selectedUbicacionId))
+      : []
+  , [unidadesDisponibles, selectedUbicacionId])
+
+  const lotesEnUbicacion = useMemo(() =>
+    selectedUbicacionId
+      ? lotesConStock.filter(l => String(l.id_ubicacion) === String(selectedUbicacionId))
+      : []
+  , [lotesConStock, selectedUbicacionId])
+
+  // Auto-abrir modal si se viene del catálogo
+  useEffect(() => {
+    if (!location.state?.fromCatalog || loading || !myRoleName) return
+    if (processedCatalogState.current) return
+    processedCatalogState.current = true
+
+    const tipoFlujoAuto = myRoleName === 'Aprendiz' ? 'aprendiz' : 'instructor'
+    const newForm = { ...FORM_INIT, tipo_flujo: tipoFlujoAuto }
+    const idUbicacion = location.state.id_ubicacion
+
+    if (idUbicacion) {
+      setSelectedUbicacionId(idUbicacion)
+      if (location.state.id_material) {
+        catalogAutoSelectRef.current = {
+          id_material: location.state.id_material,
+          categoria:   location.state.categoria,
+        }
+      }
+      const ub = ubicacionesConStock.find(u => u.id_ubicacion === idUbicacion)
+      // El instructor de un aprendiz lo resuelve el backend a partir de su ficha —
+      // ya no se deriva de quién administra la ubicación elegida.
+      if (ub?._encargado && myRoleName !== 'Aprendiz') {
+        if (ub._encargadoRol === 'Responsable de Bodega') newForm.id_bodega = ub._encargado.id
+        else if (ub._encargadoRol === 'Instructor')        newForm.id_instructor = ub._encargado.id
+      }
+    }
+
+    setForm(newForm)
+    setSelUnidades([])
+    setSelLotes([])
+    setAddUnidadId('')
+    setAddLoteId('')
+    setAddLoteCant(1)
+    setAddAprendizId('')
+    setStep(1)
+    setModalOpen(true)
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.state, loading, myRoleName, ubicacionesConStock])
+
+  // Auto-seleccionar material en paso 2 cuando viene del catálogo
+  useEffect(() => {
+    if (!catalogAutoSelectRef.current) return
+    const { id_material, categoria } = catalogAutoSelectRef.current
+    if (categoria === 'no consumible') {
+      const u = unidadesEnUbicacion.find(u => String(u.id_material) === String(id_material))
+      if (u) { setSelUnidades([u]); catalogAutoSelectRef.current = null }
+    } else {
+      const l = lotesEnUbicacion.find(l => String(l.id_material) === String(id_material))
+      if (l) { setSelLotes([{ ...l, _cantidad: 1 }]); catalogAutoSelectRef.current = null }
+    }
+  }, [unidadesEnUbicacion, lotesEnUbicacion])
+
+  const handleUbicacionChange = (id_ubicacion) => {
+    setSelectedUbicacionId(id_ubicacion)
+    // Un aprendiz no elige su aprobador — lo resuelve el backend según su ficha.
+    if (myRoleName === 'Aprendiz') return
+
+    const ub = ubicacionesConStock.find(u => u.id_ubicacion === id_ubicacion)
+    if (!ub || !ub._encargado) return
+
+    if (ub._encargadoRol === 'Responsable de Bodega') {
+      setForm(p => ({ ...p, id_bodega: ub._encargado.id }))
+    } else if (ub._encargadoRol === 'Instructor') {
+      setForm(p => ({ ...p, id_instructor: ub._encargado.id }))
+    }
+  }
 
   // ── Per-row permissions ───────────────────────────────────────────────────
 
@@ -395,6 +524,7 @@ export function SolicitudesPage() {
     setAddLoteId('')
     setAddLoteCant(1)
     setAddAprendizId('')
+    setSelectedUbicacionId('')
     setStep(1)
     setModalOpen(true)
   }
@@ -403,20 +533,20 @@ export function SolicitudesPage() {
 
   const step1Valid = () => {
     if (!form.tipo_flujo || !form.tipo_prestamo) return false
-    if (form.tipo_flujo === 'aprendiz' && !form.id_instructor)  return false
-    if (form.tipo_flujo === 'instructor' && !form.id_bodega)    return false
+    if (!selectedUbicacionId) return false
+    if (form.tipo_flujo === 'instructor' && !form.id_bodega) return false
     return true
   }
 
   const addUnidad = () => {
-    const u = unidadesDisponibles.find(u => u.id_unidad === addUnidadId)
+    const u = unidadesEnUbicacion.find(u => u.id_unidad === addUnidadId)
     if (!u || selUnidades.find(s => s.id_unidad === u.id_unidad)) return
     setSelUnidades(p => [...p, u])
     setAddUnidadId('')
   }
 
   const addLote = () => {
-    const l = lotesConStock.find(l => l.id_lote === addLoteId)
+    const l = lotesEnUbicacion.find(l => l.id_lote === addLoteId)
     if (!l || selLotes.find(s => s.id_lote === l.id_lote)) return
     const cant = Math.max(1, Math.min(addLoteCant, l.cantidad_disponible))
     setSelLotes(p => [...p, { ...l, _cantidad: cant }])
@@ -443,8 +573,9 @@ export function SolicitudesPage() {
         tipo_prestamo:  form.tipo_prestamo,
         observaciones:  form.observaciones || undefined,
       }
-      if (form.tipo_flujo === 'aprendiz')    payload.id_instructor = form.id_instructor
-      if (form.tipo_flujo === 'instructor')  payload.id_bodega     = form.id_bodega
+      // El instructor de un aprendiz lo resuelve el backend según su ficha —
+      // no se manda id_instructor para tipo_flujo 'aprendiz'.
+      if (form.tipo_flujo === 'instructor')  payload.id_bodega = form.id_bodega
 
       const { data: sol } = await api.post('/solicitud', payload)
 
@@ -467,6 +598,7 @@ export function SolicitudesPage() {
   // ── Table columns ─────────────────────────────────────────────────────────
 
   const columns = [
+    { key: 'id_solicitud', header: 'ID', copyable: true, truncateAt: 8, searchable: false, width: 110 },
     {
       key: 'fecha_solicitud', header: 'Fecha', width: 110,
       render: r => fmtFecha(r.fecha_solicitud),
@@ -596,7 +728,7 @@ export function SolicitudesPage() {
         searchable
         searchPlaceholder="Buscar por solicitante, estado, flujo, tipo…"
         pageSize={10}
-        actions={<AppButton size="compact" onClick={openCreate}>+ Nueva solicitud</AppButton>}
+        actions={canCrear && <AppButton size="compact" onClick={openCreate}>+ Nueva solicitud</AppButton>}
         emptyTitle="Sin solicitudes"
         emptyDescription="No hay solicitudes en esta categoría."
       />
@@ -639,7 +771,11 @@ export function SolicitudesPage() {
                 </svg>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
-                    {form.tipo_flujo === 'aprendiz' ? 'Aprendiz → Instructor' : 'Instructor → Bodega'}
+                    {form.tipo_flujo === 'aprendiz'
+                      ? 'Aprendiz → Instructor'
+                      : myRoleName === 'Aprendiz'
+                        ? 'Aprendiz → Responsable de Bodega (directo)'
+                        : 'Instructor → Bodega'}
                   </div>
                   <div style={{ fontSize: 11.5, color: '#4b7c45', marginTop: 1 }}>
                     Detectado automáticamente según tu rol: <strong>{myRoleName ?? 'desconocido'}</strong>
@@ -657,36 +793,48 @@ export function SolicitudesPage() {
               </AppSelect>
             </div>
 
-            {/* Conditional user selector */}
-            {form.tipo_flujo === 'aprendiz' && (
-              <div>
-                <label style={labelStyle}>Instructor de mi grupo *</label>
+            {/* Selector de ubicación */}
+            <div>
+              <label style={labelStyle}>Ubicación *</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <SearchableSelect
-                  value={form.id_instructor}
-                  placeholder="Seleccionar instructor..."
-                  options={instructores.map(u => ({ value: u.id, label: fmtNombre(u) }))}
-                  onChange={v => setForm(p => ({ ...p, id_instructor: v }))}
+                  value={selectedUbicacionId}
+                  placeholder="Buscar ubicación con stock disponible..."
+                  options={ubicacionesConStock.map(ub => ({
+                    value: ub.id_ubicacion,
+                    label: `${ub.nombre}${ub._encargadoRol ? ` — ${fmtNombre(ub._encargado)}` : ' — Sin encargado'}`,
+                  }))}
+                  onChange={handleUbicacionChange}
                 />
-                {instructores.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay instructores disponibles en el sistema.</p>
+                {selectedUbicacionId && (() => {
+                  const ub = ubicacionesConStock.find(u => u.id_ubicacion === selectedUbicacionId)
+                  if (!ub) return null
+                  const isDirect = myRoleName === 'Aprendiz' && ub._encargadoRol === 'Responsable de Bodega'
+                  return (
+                    <div style={{ padding: '10px 14px', borderRadius: 8, background: isDirect ? '#fffbeb' : '#f0fdf4', border: `1px solid ${isDirect ? '#fde68a' : '#bbf7d0'}`, fontSize: 12.5 }}>
+                      <div style={{ fontWeight: 600, color: isDirect ? '#92400e' : '#166534' }}>
+                        Encargado: {ub._encargado ? fmtNombre(ub._encargado) : 'Sin encargado asignado'}
+                      </div>
+                      {ub._encargadoRol && (
+                        <div style={{ color: isDirect ? '#b45309' : '#4b7c45', marginTop: 2 }}>
+                          Rol: {ub._encargadoRol}
+                        </div>
+                      )}
+                      {isDirect && (
+                        <div style={{ color: '#d97706', marginTop: 4, fontWeight: 500 }}>
+                          La solicitud irá directamente al Responsable de Bodega (flujo instructor).
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+                {ubicacionesConStock.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#d97706', margin: 0 }}>
+                    No hay ubicaciones con stock disponible asignadas a un encargado.
+                  </p>
                 )}
               </div>
-            )}
-
-            {form.tipo_flujo === 'instructor' && (
-              <div>
-                <label style={labelStyle}>Instructor responsable de Bodega *</label>
-                <SearchableSelect
-                  value={form.id_bodega}
-                  placeholder="Seleccionar Responsable de Bodega..."
-                  options={instructoresBodega.map(u => ({ value: u.id, label: fmtNombre(u) }))}
-                  onChange={v => setForm(p => ({ ...p, id_bodega: v }))}
-                />
-                {instructoresBodega.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>No hay InstructoresBodega registrados. Pide al administrador que cree uno.</p>
-                )}
-              </div>
-            )}
+            </div>
 
             {/* Aprendices destinatarios — solo visible para instructores con aprendices en sus fichas */}
             {form.tipo_flujo === 'instructor' && misAprendices.length > 0 && (
@@ -793,7 +941,7 @@ export function SolicitudesPage() {
                   <SearchableSelect
                     value={addUnidadId}
                     placeholder="Seleccionar unidad disponible..."
-                    options={unidadesDisponibles
+                    options={unidadesEnUbicacion
                       .filter(u => !selUnidades.find(s => s.id_unidad === u.id_unidad))
                       .map(u => ({ value: u.id_unidad, label: `${u.codigo_unidad} — ${u._material?.nombre ?? u.id_material}` }))}
                     onChange={v => setAddUnidadId(v)}
@@ -825,7 +973,7 @@ export function SolicitudesPage() {
                   <SearchableSelect
                     value={addLoteId}
                     placeholder="Seleccionar lote con stock..."
-                    options={lotesConStock
+                    options={lotesEnUbicacion
                       .filter(l => !selLotes.find(s => s.id_lote === l.id_lote))
                       .map(l => ({ value: l.id_lote, label: `${l.codigo_lote} — ${l._material?.nombre ?? l.id_material} (disp: ${l.cantidad_disponible})` }))}
                     onChange={v => { setAddLoteId(v); setAddLoteCant(1) }}
@@ -833,7 +981,7 @@ export function SolicitudesPage() {
                 </div>
                 <input
                   type="number" min={1}
-                  max={lotesConStock.find(l => l.id_lote === addLoteId)?.cantidad_disponible ?? 9999}
+                  max={lotesEnUbicacion.find(l => l.id_lote === addLoteId)?.cantidad_disponible ?? 9999}
                   value={addLoteCant}
                   onChange={e => setAddLoteCant(Number(e.target.value))}
                   disabled={!addLoteId}
@@ -846,12 +994,23 @@ export function SolicitudesPage() {
                 ? <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Sin lotes agregados.</p>
                 : selLotes.map(l => (
                     <div key={l.id_lote} style={itemRowStyle}>
-                      <span style={{ fontSize: 13 }}>
-                        <code style={{ fontSize: 11.5, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 4 }}>{l.codigo_lote}</code>
-                        {' '}{l._material?.nombre ?? ''}{' '}
-                        <span style={{ color: '#6b7280' }}>× {l._cantidad}</span>
+                      <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <code style={{ fontSize: 11.5, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>{l.codigo_lote}</code>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l._material?.nombre ?? ''}</span>
                       </span>
-                      <button onClick={() => setSelLotes(p => p.filter(s => s.id_lote !== l.id_lote))} style={removeBtn}>✕</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <input
+                          type="number" min={1} max={l.cantidad_disponible}
+                          value={l._cantidad}
+                          onChange={e => {
+                            const cant = Math.max(1, Math.min(Number(e.target.value) || 1, l.cantidad_disponible))
+                            setSelLotes(p => p.map(s => s.id_lote === l.id_lote ? { ...s, _cantidad: cant } : s))
+                          }}
+                          style={{ ...inputStyle, width: 64, padding: '4px 6px', fontSize: 12.5 }}
+                        />
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>/ {l.cantidad_disponible}</span>
+                        <button onClick={() => setSelLotes(p => p.filter(s => s.id_lote !== l.id_lote))} style={removeBtn}>✕</button>
+                      </div>
                     </div>
                   ))
               }

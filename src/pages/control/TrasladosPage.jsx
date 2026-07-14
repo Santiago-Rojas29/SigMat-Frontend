@@ -37,9 +37,9 @@ function fmt(val) {
 
 export function TrasladosPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
-  const canEdit = hasPermission('control') || isAdmin
+  const canCrear = hasAction('control', 'traslados', 'crear')
 
   const [traslados,   setTraslados]   = useState([])
   const [unidades,    setUnidades]    = useState([])
@@ -286,7 +286,7 @@ export function TrasladosPage() {
         pageSize={10}
         emptyTitle="Sin traslados"
         emptyDescription="Registra el primer traslado del almacén."
-        emptyAction={canEdit && (
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={() => { setForm({ ...EMPTY_FORM, id_responsable: isAdmin ? '' : user?.id ?? '' }); setItems([]); setModal(true) }}>
             <AppIcon name="plus" /> Nuevo traslado
           </AppButton>
@@ -296,7 +296,7 @@ export function TrasladosPage() {
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            {canEdit && (
+            {canCrear && (
               <AppButton size="compact" onClick={() => { setForm({ ...EMPTY_FORM, id_responsable: isAdmin ? '' : user?.id ?? '' }); setItems([]); setModal(true) }}>
                 <AppIcon name="plus" /> Nuevo traslado
               </AppButton>

@@ -46,3 +46,17 @@ export function groupUsersByRole(usuarios, roles) {
 
   return result
 }
+
+/**
+ * Devuelve los usuarios con rol "Responsable de Bodega", listos como opciones
+ * para SearchableSelect. Se usa en los selects de responsable/encargado de
+ * Áreas, Lotes, Unidades y Ubicaciones — son quienes gestionan zonas del almacén.
+ */
+export function getResponsablesBodega(usuarios, roles) {
+  const rolBodega = roles.find(r => r.nombre === 'Responsable de Bodega')
+  if (!rolBodega) return []
+  return usuarios
+    .filter(u => u.id_rol === rolBodega.id)
+    .sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, 'es'))
+    .map(u => ({ value: u.id, label: `${u.nombres} ${u.apellidos}`.trim() }))
+}

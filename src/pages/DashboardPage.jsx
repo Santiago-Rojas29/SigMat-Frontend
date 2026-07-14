@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../context/PermissionsContext'
 import api from '../services/api'
@@ -11,7 +12,6 @@ import { IncidenciasChart }            from './dashboard/IncidenciasChart'
 import { StockCriticoList }            from './dashboard/StockCriticoList'
 import { MorososTable }                from './dashboard/MorososTable'
 import { DashboardPersonal }           from './dashboard/DashboardPersonal'
-import { DashboardRoot }               from './dashboard/DashboardRoot'
 
 const MODULE_LABELS = {
   materiales: 'Materiales',
@@ -67,24 +67,12 @@ const ROL_SUBTITLE = {
 
 export function DashboardPage() {
   const { user }              = useAuth()
-  const { modules, loading: loadingModules } = usePermissions()
+  const { modules, loading: loadingModules, rolNombre } = usePermissions()
 
-  const [rolNombre,    setRolNombre]    = useState(null)
   const [sedeNombre,   setSedeNombre]   = useState(null)
   const [stats,        setStats]        = useState(null)
   const [loadingStats, setLoadingStats] = useState(true)
   const [statsError,   setStatsError]   = useState(null)
-
-  // Resolver nombre del rol
-  useEffect(() => {
-    if (!user?.id_rol) return
-    api.get('/rol')
-      .then(({ data }) => {
-        const found = data.find(r => r.id === user.id_rol)
-        setRolNombre(found?.nombre ?? null)
-      })
-      .catch(() => {})
-  }, [user?.id_rol])
 
   // Resolver nombre de la sede
   useEffect(() => {
@@ -110,6 +98,8 @@ export function DashboardPage() {
   const displayName = user?.nombres
     ? `${user.nombres} ${user.apellidos ?? ''}`.trim()
     : (user?.correo ?? 'Usuario')
+
+  if (rolNombre === 'Root') return <Navigate to="/root" replace />
 
   return (
     <div style={{ width: '100%' }}>
@@ -191,10 +181,6 @@ export function DashboardPage() {
       )}
 
       {/* Contenido según rol */}
-      {rolNombre === 'Root' && (
-        <DashboardRoot />
-      )}
-
       {(rolNombre === 'Instructor' || rolNombre === 'Aprendiz') && (
         <DashboardPersonal />
       )}

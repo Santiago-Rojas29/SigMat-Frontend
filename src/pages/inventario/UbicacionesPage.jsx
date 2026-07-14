@@ -16,7 +16,7 @@ import { DataTable }     from '../../components/organisms/DataTable'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../context/PermissionsContext'
 import { AppIcon }        from '../../components/atoms/AppIcon'
-import { groupUsersByRole } from '../../utils/userGroups'
+import { getResponsablesBodega } from '../../utils/userGroups'
 const PALETA = [
   { color: '#39A900', bg: '#f0fdf4', border: '#bbf7d0', light: '#dcfce7', paths: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
   { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', light: '#dbeafe', paths: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
@@ -29,8 +29,11 @@ const PALETA = [
 
 export function UbicacionesPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin  = hasPermission('administracion')
+  const canCrear    = hasAction('inventario', 'ubicaciones', 'crear')
+  const canEditar   = hasAction('inventario', 'ubicaciones', 'editar')
+  const canEliminar = hasAction('inventario', 'ubicaciones', 'eliminar')
   const navigate = useNavigate()
 
   const [tipos,       setTipos]       = useState([])
@@ -123,7 +126,7 @@ export function UbicacionesPage() {
     },
     ...tipos.map((t, idx) => {
       const p = PALETA[idx % PALETA.length]
-      return { key: String(t.id_tipo_ubicacion), label: t.nombre, color: p.color, bg: p.bg, border: p.border, paths: p.paths }
+      return { key: String(t.id_tipo_ubicacion), label: t.nombre, color: p.color, bg: p.bg, border: p.border, paths: p.paths, _tipo: t }
     }),
   ], [tipos])
 
@@ -296,8 +299,8 @@ export function UbicacionesPage() {
           >
             <AppIcon name="package" size={15} />
           </IconButton>
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><AppIcon name="edit" size={15} /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><AppIcon name="trash" size={15} /></IconButton>}
+          {canEditar && <IconButton variant="edit"   title="Editar"   onClick={() => openEditUb(u)}><AppIcon name="edit" size={15} /></IconButton>}
+          {canEliminar && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteUb(u)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -314,11 +317,16 @@ export function UbicacionesPage() {
         {cards.map(card => {
           const isActive = filtro === card.key
           const count    = card.key === null ? counts.total : (counts[card.key] ?? 0)
+          const esTipo   = card.key !== null
           return (
-            <button
+            <div
               key={String(card.key)}
+              role="button"
+              tabIndex={0}
               onClick={() => setFiltro(isActive ? null : card.key)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFiltro(isActive ? null : card.key) } }}
               style={{
+                position: 'relative',
                 flex: '1 1 120px', minWidth: 110, display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                 gap: 10, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
                 border: `1.5px solid ${isActive ? card.color : card.border}`,
@@ -326,6 +334,36 @@ export function UbicacionesPage() {
                 transition: 'all 0.18s',
               }}
             >
+              {esTipo && (
+                <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
+                  <button
+                    type="button"
+                    title="Editar tipo"
+                    onClick={e => { e.stopPropagation(); openEditTipo(card._tipo) }}
+                    style={{
+                      width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: 'none', borderRadius: 6, cursor: 'pointer',
+                      background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)',
+                      color: isActive ? '#fff' : card.color,
+                    }}
+                  >
+                    <AppIcon name="edit" size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Eliminar tipo"
+                    onClick={e => { e.stopPropagation(); setDeleteTipo(card._tipo) }}
+                    style={{
+                      width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: 'none', borderRadius: 6, cursor: 'pointer',
+                      background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)',
+                      color: isActive ? '#fff' : '#dc2626',
+                    }}
+                  >
+                    <AppIcon name="trash" size={12} />
+                  </button>
+                </div>
+              )}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke={isActive ? '#fff' : card.color} strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round">
@@ -335,7 +373,7 @@ export function UbicacionesPage() {
                 <div style={{ fontSize: 22, fontWeight: 700, color: isActive ? '#fff' : '#111827', lineHeight: 1 }}>{count}</div>
                 <div style={{ fontSize: 11.5, color: isActive ? 'rgba(255,255,255,0.85)' : '#6b7280', marginTop: 3 }}>{card.label}</div>
               </div>
-            </button>
+            </div>
           )
         })}
       </div>
@@ -350,15 +388,15 @@ export function UbicacionesPage() {
         searchable
         searchPlaceholder="Buscar por nombre, tipo, área…"
         pageSize={10}
-        selectable={isAdmin}
-        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin ubicaciones"
         emptyDescription="Registra la primera ubicación del almacén."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCrearUb}>
             <AppIcon name="plus" /> Nueva ubicación
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={openCrearTipo}>
@@ -367,9 +405,11 @@ export function UbicacionesPage() {
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCrearUb}>
-              <AppIcon name="plus" /> Nueva ubicación
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCrearUb}>
+                <AppIcon name="plus" /> Nueva ubicación
+              </AppButton>
+            )}
           </>
         }
       />
@@ -451,7 +491,7 @@ export function UbicacionesPage() {
                 size="sm"
                 value={ubForm.id_encargado}
                 placeholder="— Sin encargado —"
-                options={groupUsersByRole(usuarios, roles)}
+                options={getResponsablesBodega(usuarios, roles)}
                 onChange={v => setU('id_encargado', v)}
               />
             </FormField>

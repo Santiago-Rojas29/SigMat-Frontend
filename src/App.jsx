@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
-import { PermissionsProvider } from './context/PermissionsContext'
+import { PermissionsProvider, usePermissions } from './context/PermissionsContext'
 import { SocketProvider } from './context/SocketContext'
 import { PrivateRoute } from './routes/PrivateRoute'
 import { PermissionRoute } from './routes/PermissionRoute'
+import { RootRoute }       from './routes/RootRoute'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -22,14 +23,21 @@ import { LotesPage }        from './pages/inventario/LotesPage'
 import { UnidadesPage }     from './pages/inventario/UnidadesPage'
 import { SolicitudesPage }  from './pages/movimientos/SolicitudesPage'
 import { PrestamosPage }   from './pages/movimientos/PrestamosPage'
+import { CatalogoPage }    from './pages/movimientos/CatalogoPage'
 import { IncidenciasPage } from './pages/control/IncidenciasPage'
 import { TrasladosPage }  from './pages/control/TrasladosPage'
 import { KardexPage }     from './pages/control/KardexPage'
 import { ReportesPage }  from './pages/reportes/ReportesPage'
-import { RootLayout }         from './components/layout/RootLayout'
+import { DashboardRoot }       from './pages/dashboard/DashboardRoot'
 import { RootCentrosPage }    from './pages/root/RootCentrosPage'
 import { RootSedesPage }      from './pages/root/RootSedesPage'
 import { RootAdminsPage }     from './pages/root/RootAdminsPage'
+
+function FallbackRedirect() {
+  const { rolNombre } = usePermissions()
+  if (rolNombre === 'Root') return <Navigate to="/root" replace />
+  return <Navigate to="/dashboard" replace />
+}
 
 function App() {
   return (
@@ -42,15 +50,6 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            {/* Root panel — interfaz separada para super admin */}
-            <Route element={<PrivateRoute />}>
-              <Route element={<RootLayout />}>
-                <Route path="/root/centros" element={<RootCentrosPage />} />
-                <Route path="/root/sedes"   element={<RootSedesPage />} />
-                <Route path="/root/admins"  element={<RootAdminsPage />} />
-              </Route>
-            </Route>
-
             {/* Protected — requires authentication */}
             <Route element={<PrivateRoute />}>
               <Route element={<AppLayout />}>
@@ -58,19 +57,25 @@ function App() {
                 {/* Dashboard — always visible */}
                 <Route path="/dashboard" element={<DashboardPage />} />
 
+                {/* Root — gestión de tenants (solo rol Root) */}
+                <Route element={<RootRoute />}>
+                  <Route path="/root"         element={<DashboardRoot />} />
+                  <Route path="/root/centros" element={<RootCentrosPage />} />
+                  <Route path="/root/sedes"   element={<RootSedesPage />} />
+                  <Route path="/root/admins"  element={<RootAdminsPage />} />
+                </Route>
+
                 {/* Reportes — always visible */}
                 <Route path="/reportes" element={<ReportesPage />} />
 
-                {/* Estructura — solo administradores (excepto Fichas) */}
-                <Route element={<PermissionRoute module="administracion" />}>
+                {/* Estructura — requires 'estructura' */}
+                <Route element={<PermissionRoute module="estructura" />}>
                   <Route path="/estructura/centros"  element={<CentrosPage />} />
                   <Route path="/estructura/sedes"    element={<SedesPage />} />
                   <Route path="/estructura/areas"    element={<AreasPage />} />
                   <Route path="/estructura/programas"element={<ProgramasPage />} />
+                  <Route path="/estructura/fichas"   element={<FichasPage />} />
                 </Route>
-
-                {/* Fichas — visible para todos (instructores ven solo las suyas) */}
-                <Route path="/estructura/fichas"   element={<FichasPage />} />
 
                 {/* Administración — requires 'administracion' */}
                 <Route element={<PermissionRoute module="administracion" />}>
@@ -88,6 +93,7 @@ function App() {
 
                 {/* Movimientos */}
                 <Route element={<PermissionRoute module="movimientos" />}>
+                  <Route path="/movimientos/catalogo"    element={<CatalogoPage />} />
                   <Route path="/movimientos/solicitudes" element={<SolicitudesPage />} />
                   <Route path="/movimientos/prestamos"   element={<PrestamosPage />} />
                 </Route>
@@ -103,7 +109,7 @@ function App() {
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<FallbackRedirect />} />
           </Routes>
         </BrowserRouter>
       </PermissionsProvider>

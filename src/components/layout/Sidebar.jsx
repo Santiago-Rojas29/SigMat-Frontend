@@ -24,7 +24,7 @@ const NAV = [
       { label: 'Sedes',     path: '/estructura/sedes',     icon: 'map-pin',   module: 'estructura', sub: 'sedes'     },
       { label: 'Áreas',     path: '/estructura/areas',     icon: 'folder',    module: 'estructura', sub: 'areas'     },
       { label: 'Programas', path: '/estructura/programas', icon: 'book',      module: 'estructura', sub: 'programas' },
-      { label: 'Fichas',    path: '/estructura/fichas',    icon: 'clipboard', module: null },
+      { label: 'Fichas',    path: '/estructura/fichas',    icon: 'clipboard', module: 'estructura', sub: 'fichas' },
     ],
   },
   {
@@ -49,6 +49,7 @@ const NAV = [
     section: 'Movimientos',
     sectionModule: 'movimientos',
     items: [
+      { label: 'Catálogo',    path: '/movimientos/catalogo',    icon: 'search', module: 'movimientos', sub: 'catalogo' },
       { label: 'Solicitudes', path: '/movimientos/solicitudes', icon: 'file',   module: 'movimientos', sub: 'solicitudes' },
       { label: 'Préstamos',   path: '/movimientos/prestamos',   icon: 'arrows', module: 'movimientos', sub: 'prestamos'   },
     ],
@@ -71,8 +72,15 @@ const NAV = [
   },
 ]
 
+const ROOT_NAV = [
+  { label: 'Resumen',          path: '/root',         icon: 'dashboard' },
+  { label: 'Centros',          path: '/root/centros', icon: 'building'  },
+  { label: 'Sedes',            path: '/root/sedes',   icon: 'map-pin'   },
+  { label: 'Administradores',  path: '/root/admins',  icon: 'shield'    },
+]
+
 export function Sidebar({ isOpen, isMobile, onClose }) {
-  const { hasPermission, hasSubPermission, hasAnyPermission } = usePermissions()
+  const { hasPermission, hasSubPermission, hasAnyPermission, rolNombre } = usePermissions()
   const [openSections, setOpenSections] = useState({})
 
   const toggleSection = (s) => setOpenSections(p => ({ ...p, [s]: p[s] !== false ? false : true }))
@@ -150,7 +158,59 @@ export function Sidebar({ isOpen, isMobile, onClose }) {
 
       {/* Nav */}
       <nav className="smt-nav" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 0' }}>
-        {NAV.map(({ section, sectionModule, items }) => {
+
+        {/* ── Root nav ───────────────────────────────────────────── */}
+        {rolNombre === 'Root' && (
+          <div>
+            {/* Indicador Root */}
+            <div style={{
+              margin: showOpen ? '8px 12px 4px' : '8px 8px 4px',
+              padding: showOpen ? '10px 12px' : '8px 0',
+              background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+              border: '1px solid #bbf7d0',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: showOpen ? 'flex-start' : 'center',
+              gap: 8,
+            }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              {showOpen && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', lineHeight: 1.2 }}>PANEL ROOT</div>
+                  <div style={{ fontSize: 10, color: '#4ade80', lineHeight: 1.2, marginTop: 1 }}>Sistema SIGMAT</div>
+                </div>
+              )}
+            </div>
+
+            {showOpen ? (
+              <div style={{ padding: '10px 20px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.9px', textTransform: 'uppercase', color: '#9ca3af' }}>
+                Gestión de tenants
+              </div>
+            ) : (
+              <div style={{ height: 1, background: '#e5e7eb', margin: '6px 10px' }} />
+            )}
+
+            {ROOT_NAV.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/root'}
+                title={!showOpen ? item.label : undefined}
+                className={({ isActive }) => `smt-link${showOpen ? '' : ' icon-only'}${isActive ? ' active' : ''}`}
+                onClick={isMobile ? onClose : undefined}
+              >
+                <AppIcon name={item.icon} size={17} style={{ flexShrink: 0 }} />
+                {showOpen && item.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
+
+        {/* ── Normal nav ─────────────────────────────────────────── */}
+        {rolNombre !== 'Root' && NAV.map(({ section, sectionModule, items }) => {
           if (!sectionVisible(sectionModule)) return null
           const visible = items.filter(it => itemVisible(it.module, it.sub))
           if (visible.length === 0) return null
@@ -231,6 +291,7 @@ export function Sidebar({ isOpen, isMobile, onClose }) {
             </div>
           )
         })}
+
       </nav>
     </aside>
   )

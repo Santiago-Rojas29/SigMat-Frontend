@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSocket } from '../../context/SocketContext'
 import api from '../../services/api'
 
@@ -10,6 +11,19 @@ const TIPO_CONFIG = {
   prestamo_vencido:  { color: '#dc2626', bg: '#fef2f2', icon: '⚠️' },
   lote_vencimiento:  { color: '#7c3aed', bg: '#f5f3ff', icon: '📦' },
   stock_bajo:        { color: '#c2410c', bg: '#fff7ed', icon: '📉' },
+  nueva_incidencia:  { color: '#be123c', bg: '#fff1f2', icon: '🚨' },
+  incidencia_estado: { color: '#be123c', bg: '#fff1f2', icon: '🚨' },
+  nuevo_traslado:    { color: '#0d9488', bg: '#f0fdfa', icon: '🔄' },
+}
+
+// A dónde navegar según referencia_tipo — mismo submódulo donde ocurrió lo que originó la notificación
+const REFERENCIA_ROUTES = {
+  solicitud:  '/movimientos/solicitudes',
+  prestamo:   '/movimientos/prestamos',
+  entrega:    '/movimientos/prestamos',
+  lote:       '/inventario/lotes',
+  incidencia: '/control/incidencias',
+  traslado:   '/control/traslados',
 }
 
 function parseServerAge(dateStr) {
@@ -54,6 +68,7 @@ function BellIcon({ hasUnread }) {
 
 export function NotificacionBell() {
   const socket = useSocket()
+  const navigate = useNavigate()
   const [notifs, setNotifs]   = useState([])
   const [open, setOpen]       = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -116,6 +131,15 @@ export function NotificacionBell() {
       await api.patch(`/notificaciones/${id}/leer`)
       setNotifs(prev => prev.map(n => n.id_notificacion === id ? { ...n, leida: true } : n))
     } catch { /* silent */ }
+  }
+
+  const handleClickNotif = (n) => {
+    if (!n.leida) marcarLeida(n.id_notificacion)
+    const ruta = REFERENCIA_ROUTES[n.referencia_tipo]
+    if (ruta) {
+      closePanel()
+      navigate(ruta)
+    }
   }
 
   const marcarTodas = async () => {
@@ -221,20 +245,21 @@ export function NotificacionBell() {
               </div>
             ) : notifs.map(n => {
               const cfg = TIPO_CONFIG[n.tipo] ?? { color: '#6b7280', bg: '#f9fafb', icon: '🔔' }
+              const esClicable = !!REFERENCIA_ROUTES[n.referencia_tipo] || !n.leida
               return (
                 <div
                   key={n.id_notificacion}
-                  onClick={() => !n.leida && marcarLeida(n.id_notificacion)}
+                  onClick={() => handleClickNotif(n)}
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 14px',
                     background: n.leida ? 'transparent' : 'rgba(57,169,0,0.04)',
                     borderBottom: '1px solid #f3f4f6',
-                    cursor: n.leida ? 'default' : 'pointer',
+                    cursor: esClicable ? 'pointer' : 'default',
                     transition: 'background 0.12s',
                   }}
-                  onMouseEnter={e => { if (!n.leida) e.currentTarget.style.background = 'rgba(57,169,0,0.08)' }}
-                  onMouseLeave={e => { if (!n.leida) e.currentTarget.style.background = 'rgba(57,169,0,0.04)' }}
+                  onMouseEnter={e => { if (esClicable) e.currentTarget.style.background = n.leida ? '#f9fafb' : 'rgba(57,169,0,0.08)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = n.leida ? 'transparent' : 'rgba(57,169,0,0.04)' }}
                 >
                   <span style={{
                     flexShrink: 0, width: 28, height: 28,

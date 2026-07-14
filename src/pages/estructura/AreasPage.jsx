@@ -13,12 +13,17 @@ import { ConfirmDialog }    from '../../components/molecules/ConfirmDialog'
 import { AppModal }         from '../../components/organisms/AppModal'
 import { DataTable }        from '../../components/organisms/DataTable'
 import { AppIcon }          from '../../components/atoms/AppIcon'
-import { groupUsersByRole }  from '../../utils/userGroups'
+import { getResponsablesBodega }  from '../../utils/userGroups'
+import { usePermissions }   from '../../context/PermissionsContext'
 const EMPTY_FORM = {
   id_sede: '', id_usuario: '', nombre: '', descripcion: '', estado: 'activo',
 }
 
 export function AreasPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('estructura', 'areas', 'crear')
+  const canEditar   = hasAction('estructura', 'areas', 'editar')
+  const canEliminar = hasAction('estructura', 'areas', 'eliminar')
   const [areas, setAreas] = useState([])
   const [sedes, setSedes] = useState([])
   const [usuarios, setUsuarios] = useState([])
@@ -172,12 +177,16 @@ export function AreasPage() {
       width: 90,
       render: (a) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(a)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(a)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(a)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(a)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -201,23 +210,25 @@ export function AreasPage() {
         searchable
         searchPlaceholder="Buscar por nombre, sede, responsable…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin áreas"
         emptyDescription="Crea la primera área."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nueva área
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nueva área
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nueva área
+              </AppButton>
+            )}
           </>
         }
       />
@@ -258,7 +269,7 @@ export function AreasPage() {
                   size="sm"
                   value={form.id_usuario}
                   placeholder="Seleccionar usuario"
-                  options={groupUsersByRole(usuarios, roles)}
+                  options={getResponsablesBodega(usuarios, roles)}
                   onChange={v => set('id_usuario', v)}
                 />
               </FormField>

@@ -42,8 +42,11 @@ const EMPTY_FORM = {
 
 export function FichasPage() {
   const { user } = useAuth()
-  const { hasPermission } = usePermissions()
+  const { hasPermission, hasAction } = usePermissions()
   const isAdmin = hasPermission('administracion')
+  const canCrear    = hasAction('estructura', 'fichas', 'crear')
+  const canEditar   = hasAction('estructura', 'fichas', 'editar')
+  const canEliminar = hasAction('estructura', 'fichas', 'eliminar')
 
   const [fichas,       setFichas]       = useState([])
   const [programas,    setProgramas]    = useState([])
@@ -334,12 +337,16 @@ export function FichasPage() {
               <AppIcon name="users" size={13} />
               {totalMiembros > 0 ? totalMiembros : '+'} miembro{totalMiembros !== 1 ? 's' : ''}
             </button>
-            <IconButton variant="edit" title="Editar" onClick={() => openEdit(f)}>
-              <AppIcon name="edit" size={15} />
-            </IconButton>
-            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(f)}>
-              <AppIcon name="trash" size={15} />
-            </IconButton>
+            {canEditar && (
+              <IconButton variant="edit" title="Editar" onClick={() => openEdit(f)}>
+                <AppIcon name="edit" size={15} />
+              </IconButton>
+            )}
+            {canEliminar && (
+              <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(f)}>
+                <AppIcon name="trash" size={15} />
+              </IconButton>
+            )}
           </div>
         )
       },
@@ -367,11 +374,11 @@ export function FichasPage() {
         searchable
         searchPlaceholder="Buscar por código, programa, jornada…"
         pageSize={10}
-        selectable={isAdmin}
-        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle={isAdmin ? 'Sin fichas' : 'Sin fichas asignadas'}
         emptyDescription={isAdmin ? 'Crea la primera ficha.' : 'No estás asignado a ninguna ficha.'}
-        emptyAction={isAdmin
+        emptyAction={canCrear
           ? <AppButton size="compact" onClick={openCreate}><AppIcon name="plus" /> Nueva ficha</AppButton>
           : null
         }
@@ -381,9 +388,11 @@ export function FichasPage() {
               <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
                 <AppIcon name="refresh" /> Actualizar
               </AppButton>
-              <AppButton size="compact" onClick={openCreate}>
-                <AppIcon name="plus" /> Nueva ficha
-              </AppButton>
+              {canCrear && (
+                <AppButton size="compact" onClick={openCreate}>
+                  <AppIcon name="plus" /> Nueva ficha
+                </AppButton>
+              )}
             </>
           ) : (
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>

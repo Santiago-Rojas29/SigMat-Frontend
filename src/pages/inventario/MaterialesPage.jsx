@@ -71,8 +71,10 @@ const esConsumibleOPerecedero = (cat) => cat === 'consumible' || cat === 'perece
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function MaterialesPage() {
-  const { hasPermission } = usePermissions()
-  const isAdmin  = hasPermission('administracion')
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('inventario', 'materiales', 'crear')
+  const canEditar   = hasAction('inventario', 'materiales', 'editar')
+  const canEliminar = hasAction('inventario', 'materiales', 'eliminar')
   const navigate = useNavigate()
 
   const [materiales,   setMateriales]   = useState([])
@@ -363,8 +365,8 @@ export function MaterialesPage() {
               <AppIcon name="link" size={14} />
             </IconButton>
           )}
-          <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(m)}><AppIcon name="edit"  size={15} /></IconButton>
-          {isAdmin && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(m)}><AppIcon name="trash" size={15} /></IconButton>}
+          {canEditar && <IconButton variant="edit"   title="Editar"   onClick={() => openEdit(m)}><AppIcon name="edit"  size={15} /></IconButton>}
+          {canEliminar && <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(m)}><AppIcon name="trash" size={15} /></IconButton>}
         </div>
       ),
     },
@@ -419,24 +421,26 @@ export function MaterialesPage() {
         searchable
         searchPlaceholder="Buscar por nombre, marca, tipo…"
         pageSize={10}
-        selectable={isAdmin}
-        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin materiales"
         emptyDescription={activeCateg ? `No hay materiales en la categoría ${cfg(activeCateg).label}.` : 'Agrega el primer material al catálogo.'}
-        emptyAction={<AppButton size="compact" onClick={openCreate}><AppIcon name="plus" /> Nuevo material</AppButton>}
+        emptyAction={canCrear ? <AppButton size="compact" onClick={openCreate}><AppIcon name="plus" /> Nuevo material</AppButton> : undefined}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            {isAdmin && (
+            {canCrear && (
               <AppButton variant="ghost" size="compact" onClick={() => setImportModal(true)}>
                 <AppIcon name="upload" /> Importar
               </AppButton>
             )}
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo material
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo material
+              </AppButton>
+            )}
           </>
         }
       />

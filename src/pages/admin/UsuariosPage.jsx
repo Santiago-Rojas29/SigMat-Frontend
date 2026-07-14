@@ -13,6 +13,7 @@ import { ConfirmDialog }         from '../../components/molecules/ConfirmDialog'
 import { AppModal }              from '../../components/organisms/AppModal'
 import { DataTable }             from '../../components/organisms/DataTable'
 import { AppIcon }               from '../../components/atoms/AppIcon'
+import { usePermissions }        from '../../context/PermissionsContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,10 @@ const EMPTY_FORM = {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function UsuariosPage() {
+  const { hasAction } = usePermissions()
+  const canCrear    = hasAction('administracion', 'usuarios', 'crear')
+  const canEditar   = hasAction('administracion', 'usuarios', 'editar')
+  const canEliminar = hasAction('administracion', 'usuarios', 'eliminar')
   const [usuarios, setUsuarios] = useState([])
   const [roles,    setRoles]    = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -194,12 +199,16 @@ export function UsuariosPage() {
       width: 90,
       render: (u) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
-            <AppIcon name="edit" size={15} />
-          </IconButton>
-          <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}>
-            <AppIcon name="trash" size={15} />
-          </IconButton>
+          {canEditar && (
+            <IconButton variant="edit" title="Editar" onClick={() => openEdit(u)}>
+              <AppIcon name="edit" size={15} />
+            </IconButton>
+          )}
+          {canEliminar && (
+            <IconButton variant="delete" title="Eliminar" onClick={() => setDeleteTarget(u)}>
+              <AppIcon name="trash" size={15} />
+            </IconButton>
+          )}
         </div>
       ),
     },
@@ -225,23 +234,25 @@ export function UsuariosPage() {
         searchable
         searchPlaceholder="Buscar por nombre, correo, documento…"
         pageSize={10}
-        selectable
-        onBulkDelete={handleBulkDelete}
+        selectable={canEliminar}
+        onBulkDelete={canEliminar ? handleBulkDelete : undefined}
         emptyTitle="Sin usuarios"
         emptyDescription="Crea el primer usuario del sistema."
-        emptyAction={
+        emptyAction={canCrear && (
           <AppButton size="compact" onClick={openCreate}>
             <AppIcon name="plus" /> Nuevo usuario
           </AppButton>
-        }
+        )}
         actions={
           <>
             <AppButton variant="ghost" size="compact" onClick={loadData} disabled={loading}>
               <AppIcon name="refresh" /> Actualizar
             </AppButton>
-            <AppButton size="compact" onClick={openCreate}>
-              <AppIcon name="plus" /> Nuevo usuario
-            </AppButton>
+            {canCrear && (
+              <AppButton size="compact" onClick={openCreate}>
+                <AppIcon name="plus" /> Nuevo usuario
+              </AppButton>
+            )}
           </>
         }
       />

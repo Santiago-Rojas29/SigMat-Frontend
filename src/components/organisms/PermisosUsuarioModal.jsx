@@ -6,7 +6,7 @@ import { ModuloPermisoToggle }  from '../molecules/ModuloPermisoToggle'
 import { usuarioPermisosService } from '../../services/usuarioPermisos.service'
 import { MODULOS }              from '../../constants/permisos.constants'
 
-export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
+export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos, onSaved }) {
   // selecciones: { [id_permiso]: { enabled, submodulos, assignmentId } }
   const [selecciones,  setSelecciones]  = useState({})
   const [original,     setOriginal]     = useState({})
@@ -73,6 +73,9 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
           }
         }
       }
+      // El toast se dispara desde el padre: este modal se desmonta al cerrar
+      // (onClose), y un toast local montado aquí nunca alcanza a pintarse.
+      onSaved?.()
       onClose()
     } catch (e) {
       const msg = e.response?.data?.message
@@ -151,6 +154,8 @@ export function PermisosUsuarioModal({ isOpen, onClose, usuario, permisos }) {
                 label={m.label}
                 enabled={sel.enabled}
                 submodulos={sel.submodulos}
+                subAcciones={Object.fromEntries((sel.submodulos ?? []).map(s => [s, []]))}
+                showAcciones={false}
                 onChange={(val) => handleChange(permiso.id, val)}
               />
             )
